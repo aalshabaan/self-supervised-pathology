@@ -116,6 +116,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
+    # device = torch.device('cpu')
     # build model
     model = vits.__dict__[args.arch](patch_size=args.patch_size, num_classes=0)
     for p in model.parameters():
@@ -158,14 +159,16 @@ if __name__ == '__main__':
         print("Please use the `--image_path` argument to indicate the path of the image you wish to visualize.")
         print("Since no image path have been provided, we take the first image in our paper.")
         response = requests.get("https://dl.fbaipublicfiles.com/dino/img.png")
-        img = Image.open(BytesIO(response.content))
-        img = img.convert('RGB')
+        # img = Image.open(BytesIO(response.content))
+        # img = img.convert('RGB')
+        img = imread(BytesIO(response.content))
     elif os.path.isfile(args.image_path):
         # print('OPENING')
         # with open(args.image_path, 'rb') as f:
         print('READING')
-        img = Image.open(args.image_path)
-        print(img.info)
+        # img = Image.open(args.image_path)
+        img = imread(args.image_path)
+        # print(img.info)
             # print('CONVERTING')
             # img = img.convert('RGB')
     else:
