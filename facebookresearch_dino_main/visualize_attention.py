@@ -35,8 +35,7 @@ import numpy as np
 from PIL import Image
 from skimage.io import imread
 
-import utils
-import vision_transformer as vits
+from . import vision_transformer as vits
 
 
 def apply_mask(image, mask, color, alpha=0.5):
