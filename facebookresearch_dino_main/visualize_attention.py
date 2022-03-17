@@ -39,9 +39,10 @@ from . import vision_transformer as vits
 
 
 def apply_mask(image, mask, color, alpha=0.5):
+    x = image.copy()
     for c in range(3):
-        image[:, :, c] = image[:, :, c] * (1 - alpha * mask) + alpha * mask * color[c] * 255
-    return image
+        x[:, :, c] = image[:, :, c] * (1 - alpha * mask) + alpha * mask * color[c] * 255
+    return x
 
 
 def random_colors(N, bright=True):
