@@ -21,6 +21,7 @@ import json
 from pathlib import Path
 
 import numpy as np
+import skimage.io
 from PIL import Image
 import torch
 import torch.nn as nn
@@ -128,6 +129,8 @@ def get_args_parser():
     parser.add_argument("--local_rank", default=0, type=int, help="Please ignore and do not set this argument.")
     return parser
 
+def load_pil_tif_without_crashing_on_windows(img_path:str):
+    return Image.fromarray(skimage.io.imread(img_path))
 
 def train_dino(args):
     utils.init_distributed_mode(args)
@@ -142,7 +145,7 @@ def train_dino(args):
         args.local_crops_scale,
         args.local_crops_number,
     )
-    dataset = datasets.ImageFolder(args.data_path, transform=transform)
+    dataset = datasets.ImageFolder(args.data_path, transform=transform, loader=load_pil_tif_without_crashing_on_windows)
     sampler = torch.utils.data.DistributedSampler(dataset, shuffle=True)
     data_loader = torch.utils.data.DataLoader(
         dataset,
