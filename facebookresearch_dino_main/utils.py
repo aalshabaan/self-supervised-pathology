@@ -488,7 +488,7 @@ def init_distributed_mode(args):
     dist.init_process_group(
         backend="nccl",
         init_method=args.dist_url,
-        world_size=2,
+        world_size=args.world_size,
         rank=args.rank,
     )
 
