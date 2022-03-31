@@ -7,6 +7,7 @@ import numpy as np
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 from skimage.io import imsave
 from matplotlib import colormaps
@@ -18,7 +19,7 @@ from facebookresearch_dino_main.visualize_attention import apply_mask
 from facebookresearch_dino_main.vision_transformer import VisionTransformer
 from Abed_utils import get_model, get_data_loader, OUTPUT_ROOT, output_paths
 
-def mask_batch(model:VisionTransformer, batch, names, labels, im_size, patch_size, threshold=None, device='cuda'):
+def mask_batch(model:VisionTransformer, batch, names, labels, im_size, patch_size, threshold=0.5, device='cuda', relative_mask=True):
 
     global output_paths
 
@@ -31,7 +32,8 @@ def mask_batch(model:VisionTransformer, batch, names, labels, im_size, patch_siz
     nh = attn.shape[1]
     attn = attn[:, :, 0, 1:].reshape(attn.shape[0], nh, -1)
 
-    if threshold is not None:
+
+    if relative_mask:
         # we keep only a certain percentage of the mass
         val, idx = torch.sort(attn)
         val /= torch.sum(val, dim=2, keepdim=True)
@@ -41,9 +43,15 @@ def mask_batch(model:VisionTransformer, batch, names, labels, im_size, patch_siz
         for i in range(idx2.shape[0]):
             for head in range(nh):
                 th_attn[i,head] = th_attn[i,head][idx2[i,head]]
-        th_attn = th_attn.reshape(th_attn.shape[0], nh, w_featmap, h_featmap).float()
-        # interpolate
-        th_attn = nn.functional.interpolate(th_attn, scale_factor=patch_size, mode="nearest").bool().detach().cpu().numpy()
+    else:
+        th_attn = torch.empty(*attn.shape)
+        for i in range(attn.shape[0]):
+            for head in range(nh):
+                th_attn[i,head] = attn[i,head] > threshold*(attn[i,head].min() + attn[i,head].max())
+    th_attn = th_attn.reshape(th_attn.shape[0], nh, w_featmap, h_featmap).float()
+    # interpolate
+    th_attn = F.interpolate(th_attn, scale_factor=patch_size, mode="nearest").bool().detach().cpu().numpy()
+
 
     colors = colormaps['tab10'].colors[:nh]
 
@@ -66,12 +74,12 @@ if __name__ == '__main__':
     im_size = 224
     model = get_model(patch_size, './ckpts/checkpoint0018.pth', key='teacher', device=device)
     print('Loading the dataset')
-    data = get_data_loader(im_size, patch_size, 10, whole_slide=False)
+    data = get_data_loader(im_size, patch_size, 10, whole_slide=False, output_subdir='dino_finetuning_abs')
     os.makedirs(OUTPUT_ROOT, exist_ok=True)
 
-    for i, (batch, fname, lbl) in tqdm(enumerate(data)):
+    for i, (batch, fname, lbl) in enumerate(tqdm(data)):
         names = [os.path.basename(x).split(os.path.extsep)[0] for x in list(fname)]
-        mask_batch(model, batch, names, lbl, im_size, patch_size, device=device, threshold=0.5)
+        mask_batch(model, batch, names, lbl, im_size, patch_size, device=device, threshold=0.5, relative_mask=False)
 
         if i>9:
             break

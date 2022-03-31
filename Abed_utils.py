@@ -9,6 +9,7 @@ from torchvision import transforms
 from torchvision.datasets import ImageFolder
 
 from skimage.io import imread
+from PIL import Image
 
 sys.path.extend([os.getcwd(), os.path.join(os.getcwd(), 'facebookresearch_dino_main')])
 
@@ -69,7 +70,7 @@ def normalize_input(input, im_size, patch_size):
 
     return img
 
-def get_data_loader(im_size, patch_size, batch_size=1, whole_slide=False, output_subdir=None):
+def get_data_loader(im_size, patch_size, batch_size=1, whole_slide=False, output_subdir=None, dataset_class=NamedImageFolder, shuffle=True):
     global output_paths
     global OUTPUT_ROOT
     output_subdir = os.path.join(OUTPUT_ROOT, output_subdir) if output_subdir is not None else OUTPUT_ROOT
@@ -81,9 +82,12 @@ def get_data_loader(im_size, patch_size, batch_size=1, whole_slide=False, output
         slide_name = os.path.split(WHOLE_SLIDE_PATH)[1].split(os.extsep)[0]
         output_paths.append(os.path.join(output_subdir, slide_name))
     else:
-        ds = NamedImageFolder(DATA_ROOT, transform=t, loader=imread)
-        for i,cls in enumerate(ds.classes):
+        ds = dataset_class(DATA_ROOT, t, loader=load_tif_windows)
+        for i, cls in enumerate(ds.classes):
             output_paths.append(os.path.join(output_subdir, cls))
-            os.makedirs(output_paths[i], exist_ok=True)
-    dl = DataLoader(ds, batch_size, shuffle=True)
+            # os.makedirs(output_paths[i], exist_ok=True)
+    dl = DataLoader(ds, batch_size, shuffle=shuffle)
     return dl
+
+def load_tif_windows(im_path:str):
+    return Image.fromarray(imread(im_path))
