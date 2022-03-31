@@ -16,7 +16,15 @@ import facebookresearch_dino_main.utils as utils
 def save_features(model:torch.nn.Module, data_loader:DataLoader, out_dir, multiscale=False):
     print('Extracting features')
     # metric_logger = utils.MetricLogger(delimiter="  ")
-    features = None
+    out_dim = None
+    for m in model.modules():
+        if hasattr(m, 'out_features'):
+            out_dim = m.out_features
+    if out_dim is None:
+        raise ValueError('Model output dimensionality can not be inferred')
+
+    features = torch.zeros(len(data_loader.dataset), out_dim).cpu()
+    print(f'Saving features in tensor of shape {features.shape}')
     for samples, index in tqdm(data_loader):
         samples = samples.cuda(non_blocking=True)
         index = index.cuda(non_blocking=True)
@@ -25,7 +33,6 @@ def save_features(model:torch.nn.Module, data_loader:DataLoader, out_dir, multis
             feats = utils.multi_scale(samples, model)
         else:
             feats = model(samples).clone().cpu()
-        features = torch.zeros(len(data_loader.dataset), feats.shape[-1]).cpu()
         features[index] = feats
 
     # features = extract_features(model, data)
