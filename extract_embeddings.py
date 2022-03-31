@@ -12,21 +12,6 @@ from facebookresearch_dino_main.eval_knn import ReturnIndexDataset
 import facebookresearch_dino_main.utils as utils
 
 
-def train_encoder(backbone:nn.Module, data:DataLoader, hidden_dims:Iterable[int], output_dim:int):
-    backbone.requires_grad_(False)
-    out_dim =None
-    for m in backbone.modules():
-        if hasattr(m, 'out_features'):
-            out_dim = m.out_features
-    if out_dim is None:
-        raise ValueError('Unable to infer the backbone output dimension')
-    n_hidden = len(hidden_dims)
-    layers = [nn.Linear(out_dim, hidden_dims[0])]
-
-
-def embed_batch(model, data):
-    pass
-
 @torch.no_grad()
 def save_features(model:torch.nn.Module, data_loader:DataLoader, out_dir, multiscale=False):
     print('Extracting features')
