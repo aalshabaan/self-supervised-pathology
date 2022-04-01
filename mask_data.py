@@ -72,9 +72,9 @@ if __name__ == '__main__':
     # device = torch.device('cpu')
     patch_size = 8
     im_size = 224
-    model = get_model(patch_size, './ckpts/checkpoint0018.pth', key='teacher', device=device)
+    model = get_model(patch_size, './ckpts/dino_deitsmall8_pretrain.pth', device=device)
     print('Loading the dataset')
-    data = get_data_loader(im_size, patch_size, 10, whole_slide=False, output_subdir='dino_finetuning_abs')
+    data = get_data_loader(im_size, patch_size, 10, whole_slide=False, output_subdir='dino_base_abs')
     os.makedirs(OUTPUT_ROOT, exist_ok=True)
 
     for i, (batch, fname, lbl) in enumerate(tqdm(data)):
