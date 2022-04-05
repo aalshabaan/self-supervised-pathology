@@ -4,6 +4,7 @@ import sys
 from platform import node
 
 import torch
+import torch.nn as nn
 from torch.utils.data import DataLoader
 from torchvision import transforms
 from torchvision.datasets import ImageFolder
@@ -91,3 +92,134 @@ def get_data_loader(im_size, patch_size, batch_size=1, whole_slide=False, output
 
 def load_tif_windows(im_path:str):
     return Image.fromarray(imread(im_path))
+
+@torch.no_grad()
+def distance_matrix(x, y=None, p = 2): #pairwise distance of vectors
+
+    y = x if type(y) == type(None) else y
+    x = x.cpu()
+    y = y.cpu()
+
+    n = x.size(0)
+    m = y.size(0)
+    d = x.size(1)
+
+    x = x.unsqueeze(1).expand(n, m, d)
+    y = y.unsqueeze(0).expand(n, m, d)
+
+    dist = torch.pow(x - y, p).sum(2)
+
+    return dist
+
+@torch.no_grad()
+def knn_classifier(train_features:torch.Tensor, train_labels, test_features, k:int):
+
+    num_test_images, num_chunks = test_features.shape[0], 100
+    imgs_per_chunk = max(num_test_images // num_chunks, num_test_images)
+    preds = torch.zeros(test_features.shape[0], device=torch.device('cpu'))
+
+    for idx in range(0, num_test_images, imgs_per_chunk):
+        features = test_features[idx:min(idx+imgs_per_chunk, num_test_images), :].cpu()
+        dists = distance_matrix(features, train_features)
+        _, voters = torch.topk(dists, k, largest=False)
+        votes = torch.gather(train_labels.view(1, -1).expand(features.shape[0], -1),1, voters)
+        batch_preds, _ = torch.mode(votes, 1)
+        preds[idx : min((idx + imgs_per_chunk), num_test_images)] = batch_preds
+
+    return preds
+
+@torch.no_grad()
+def similarity_knn_classifier(train_features:torch.Tensor, train_labels:torch.Tensor, test_features:torch.Tensor, k:int):
+
+    num_test_images, num_chunks = test_features.shape[0], 100
+    imgs_per_chunk = max(num_test_images // num_chunks, num_test_images)
+    train_feats_transpose = train_features.t()
+
+    preds = torch.zeros(test_features.shape[0], device=test_features.device)
+    for idx in range(0, num_test_images, imgs_per_chunk):
+        # get the features for test images
+        features = test_features[idx:min((idx+imgs_per_chunk), num_test_images), :]
+        similarities = features.mm(train_feats_transpose).t().div(features.norm(2,1)).t().div(train_features.norm(2,1))
+        _, voters = torch.topk(similarities, k, 1)
+        votes = torch.gather(train_labels.view(1, -1).expand(features.shape[0], -1),1, voters)
+        batch_preds, _ = torch.mode(votes, 1)
+        preds[idx : min((idx + imgs_per_chunk), num_test_images)] = batch_preds
+
+    return preds
+
+
+@torch.no_grad()
+def weighted_similarity_knn_classifier(train_features, train_labels, test_features, k, T, num_classes=9):
+
+    # top1, top5, total = 0.0, 0.0, 0
+    train_features = train_features.t()
+    num_test_images, num_chunks = test_features.shape[0], 100
+    imgs_per_chunk = max(num_test_images // num_chunks, num_test_images)
+    retrieval_one_hot = torch.zeros(k, num_classes).to(train_features.device)
+    preds = torch.zeros(test_features.shape[0], device=test_features.device)
+    for idx in range(0, num_test_images, imgs_per_chunk):
+        # get the features for test images
+        features = test_features[
+            idx : min((idx + imgs_per_chunk), num_test_images), :
+        ]
+        batch_size = features.shape[0]
+
+        # calculate the dot product and compute top-k neighbors
+        similarity = torch.mm(features, train_features)
+        distances, indices = similarity.topk(k, largest=True, sorted=True)
+        candidates = train_labels.view(1, -1).expand(batch_size, -1)
+        retrieved_neighbors = torch.gather(candidates, 1, indices)
+
+        retrieval_one_hot.resize_(batch_size * k, num_classes).zero_()
+        retrieval_one_hot.scatter_(1, retrieved_neighbors.view(-1, 1), 1)
+        distances_transform = distances.clone().div_(T).exp_()
+        probs = torch.sum(
+            torch.mul(
+                retrieval_one_hot.view(batch_size, -1, num_classes),
+                distances_transform.view(batch_size, -1, 1),
+            ),
+            1,
+        )
+        _, predictions = probs.sort(1, True)
+        # return predictions
+        # print(predictions.shape)
+        preds[idx:min(idx+imgs_per_chunk, num_test_images)] = predictions[:,-1]
+
+        # find the predictions that match the target
+        # correct = predictions.eq(targets.data.view(-1, 1))
+        # top1 = top1 + correct.narrow(1, 0, 1).sum().item()
+        # top5 = top5 + correct.narrow(1, 0, min(5, k)).sum().item()  # top5 does not make sense if k < 5
+        # total += targets.size(0)
+    return preds
+    # top1 = top1 * 100.0 / total
+    # top5 = top5 * 100.0 / total
+    # return top1, top5
+
+class KNN_classifier(nn.Module):
+    def __init__(self, data, lbl, k=20, mode='cos'):
+        self.data = data
+        self.labels = lbl
+        if k in range(1, self.data.shape[0]+1):
+            self.k = k
+        else:
+            raise ValueError('K must be between 1 and the total number of training samples')
+        if mode.casefold() in ['cos', 'dist', 'weighted']:
+            self.mode = mode.lower()
+        else:
+            raise ValueError('Invalid KNN mode')
+
+    def __call__(self, x):
+        if self.mode == 'cos':
+            return similarity_knn_classifier(self.data, self.labels, x, self.k)
+        elif self.mode == 'weighted':
+            return knn_classifier(self.data, self.labels, x, self.k)
+        else:
+            return weighted_similarity_knn_classifier(self.data, self.labels, x, self.k)
+
+
+def load_features(path, cuda=False, load_labels=True):
+    device = torch.device('cuda') if cuda and torch.cuda.is_available() else torch.device('cpu')
+    features = torch.load(os.path.join(path, 'features.pt')).to(device)
+    labels = torch.load(os.path.join(path, 'labels.pt')).to(device) if load_labels else None
+
+    return features, labels
