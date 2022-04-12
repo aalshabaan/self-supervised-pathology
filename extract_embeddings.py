@@ -43,5 +43,5 @@ def save_features(model:torch.nn.Module, data_loader:DataLoader, out_dir, multis
 
 if __name__ == '__main__':
     data = get_data_loader(224, 16, 64, dataset_class=ReturnIndexDataset, shuffle=False)
-    model = get_model(16, pretrained_weight_path='ckpts/dino_deitsmall8_pretrain.pth')
-    save_features(model, data, out_dir=os.path.join(OUTPUT_ROOT, 'features_tcga'))
+    model = get_model(16, pretrained_weight_path='ckpts/dino_deitsmall16_pretrain.pth')
+    save_features(model, data, out_dir=os.path.join(OUTPUT_ROOT, 'features_16'))
