@@ -1,10 +1,14 @@
 import functools
+import logging
 import math
 import os
 import sys
 from platform import node
+from typing import Union, Tuple
+import json
 
 import matplotlib.pyplot as plt
+from matplotlib.colors import Colormap
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
@@ -20,19 +24,25 @@ sys.path.extend([os.getcwd(), os.path.join(os.getcwd(), 'facebookresearch_dino_m
 from facebookresearch_dino_main.vision_transformer import vit_small
 from wsi import WholeSlideDataset
 
-PC_NAME = node()
+
+def my_pc():
+    return 'Abdulrahman' in node()
 
 DATA_ROOT = 'D:/self_supervised_pathology/datasets/NCT-CRC-HE-100K-NONORM'\
-    if 'Abdulrahman' in PC_NAME else '/mnt/data/dataset/tiled/kather19tiles_nonorm/NCT-CRC-HE-100K-NONORM'
+    if my_pc() else '/mnt/data/dataset/tiled/kather19tiles_nonorm/NCT-CRC-HE-100K-NONORM'
 
 OUTPUT_ROOT = 'D:/self_supervised_pathology/output/'\
-    if 'Abdulrahman' in PC_NAME else '/home/guest/Documents/shabaan_2022/output/'
+    if my_pc() else '/home/guest/Documents/shabaan_2022/output/'
 
-WHOLE_SLIDE_PATH = "D:/self_supervised_pathology/datasets/WSI/TCGA-CK-6747-01Z-00-DX1.7824596c-84db-4bee-b149-cd8f617c285f.svs"\
-    if 'Abdulrahman' in PC_NAME else None
+TEST_SLIDE_PATH = "D:/self_supervised_pathology/datasets/WSI/TCGA-CK-6747-01Z-00-DX1.7824596c-84db-4bee-b149-cd8f617c285f.svs"\
+    if my_pc() else None
+
+BERN_COHORT_ROOT = r"D:\self_supervised_pathology\datasets\WSI\bern_cohort_clean"\
+    if my_pc() else '/mnt/data/dataset/bern_cohort_clean/'
+
+DATETIME_FORMAT = '%m-%d_%H:%M:%S'
 
 output_paths = []
-
 
 
 _model = None
@@ -64,6 +74,7 @@ def get_model(patch_size, pretrained_weight_path, key=None, device='cuda'):
         _model = _model.to(device)
     return _model
 
+
 def normalize_input(input, im_size, patch_size):
     # print(type(input), input)
     t = transforms.Compose([transforms.ToTensor(), transforms.Resize(im_size), transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225))])
@@ -80,10 +91,10 @@ def get_data_loader(im_size, patch_size, batch_size=1, whole_slide=False, output
     output_subdir = os.path.join(OUTPUT_ROOT, output_subdir) if output_subdir is not None else OUTPUT_ROOT
     t = functools.partial(normalize_input, im_size=im_size, patch_size=patch_size)
     if whole_slide:
-        if WHOLE_SLIDE_PATH is None:
+        if TEST_SLIDE_PATH is None:
             raise ValueError('Whole slide image is not available on this machine')
-        ds = WholeSlideDataset(WHOLE_SLIDE_PATH, transform=t, )
-        slide_name = os.path.split(WHOLE_SLIDE_PATH)[1].split(os.extsep)[0]
+        ds = WholeSlideDataset(TEST_SLIDE_PATH, transform=t, )
+        slide_name = os.path.split(TEST_SLIDE_PATH)[1].split(os.extsep)[0]
         output_paths.append(os.path.join(output_subdir, slide_name))
     else:
         ds = dataset_class(DATA_ROOT, t, loader=load_tif_windows)
@@ -198,7 +209,7 @@ def weighted_similarity_knn_classifier(train_features, train_labels, test_featur
     # top5 = top5 * 100.0 / total
     # return top1, top5
 
-class KNN_classifier(nn.Module):
+class KNNClassifier(nn.Module):
     def __init__(self, data, lbl, k=20, mode='cos'):
         self.data = data
         self.labels = lbl
@@ -227,3 +238,87 @@ def load_features(path, cuda=False, load_labels=True):
 
     return features, labels
 
+
+def load_wsi(path_to_wsi, crop_size, patch_size):
+    t = functools.partial(normalize_input, im_size=crop_size, patch_size=patch_size)
+    ds = WholeSlideDataset(path_to_wsi, transform=t, crop_sizes_px=[crop_size])
+
+    return ds
+
+
+def build_poly(tx: np.ndarray, ty: np.ndarray, bx: np.ndarray, by: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+    # Counter clock-wise
+    px = np.vstack((tx, bx, bx, tx)).T
+    py = np.vstack((ty, ty, by, by)).T
+
+    return px, py
+
+
+def save_annotation_qupath(
+        tx: np.ndarray,
+        ty: np.ndarray,
+        bx: np.ndarray,
+        by: np.ndarray,
+        values: np.ndarray,
+        values_name: Union[np.ndarray, dict],
+        outpath: str,
+        cmap: Colormap,
+) -> None:
+    """
+    Parameters
+    ----------
+    tx: array_like
+    ty: array_like
+    bx: array_like
+    by: array_like
+    values: array_like
+    values_name: array_like
+    outpath: str
+    cmap: Colormap
+    """
+
+    # Check dimensions
+    if not all(tx.shape == np.array([ty.shape, bx.shape, by.shape, values.shape])):
+        return
+
+    # Build shape and simplify the shapes if True
+    polys_x, polys_y = build_poly(tx=tx, ty=ty, bx=bx, by=by)
+
+    # Extract outer shapes
+    coords = {}
+    colors = []
+    clss = []
+    for i in range(len(polys_x)):
+        color = 255*np.array(cmap(values[i]))[:3]
+        colors.append(color)
+        label = values[i] if isinstance(values_name, np.ndarray) else values_name[values[i]]
+        clss.append([label])
+        coords['poly{}'.format(i)] = {
+            "coords": np.vstack((polys_x[i], polys_y[i])).tolist(),
+            "class": str(label),
+            "color": [int(color[0]), int(color[1]), int(color[2])]
+        }
+
+    with open(outpath, 'w') as outfile:
+        json.dump(coords, outfile)
+
+
+class ClassificationHead(nn.Module):
+    logger = logging.getLogger('load_mlp')
+
+    def __init__(self, in_dim=384, hidden_dim=100, out_dim=9, pretrained_path=None, device='cuda'):
+        super().__init__()
+        self.mlp = nn.Sequential(nn.Linear(in_dim, hidden_dim, bias=False),
+                                 nn.ReLU(),
+                                 nn.Linear(hidden_dim, out_dim, bias=False),
+                                 nn.Softmax(dim=1)).to(device)
+
+        if pretrained_path is not None:
+            state_dict = torch.load(pretrained_path)
+            msg = self.mlp.load_state_dict(state_dict)
+            self.logger.info(f'Loaded MLP state dict with message {msg}')
+        else:
+            self.logger.info(f'No pretrained MLP given, loading random weights')
+
+    def forward(self, x):
+        return self.mlp(x)
