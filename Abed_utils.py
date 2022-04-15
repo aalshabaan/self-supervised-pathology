@@ -4,7 +4,7 @@ import math
 import os
 import sys
 from platform import node
-from typing import Union, Tuple
+from typing import Union, Tuple, List, Dict, Optional, Callable
 import json
 
 import matplotlib.pyplot as plt
@@ -49,6 +49,35 @@ _model = None
 class NamedImageFolder(ImageFolder):
     def __getitem__(self, item):
         return self.transform(self.loader(self.imgs[item][0])), *self.imgs[item]
+
+class BernTilesLabelDataset(ImageFolder):
+    def find_classes(self, directory: str) -> Tuple[List[str], Dict[str, int]]:
+        classes = sorted(torch.unique([x.split('_')[0] for x in os.listdir(directory) if os.path.isfile(os.path.join(directory, x))]))
+        return classes, {c:i for i,c in enumerate(classes)}
+
+    @staticmethod
+    def make_dataset(
+        directory: str,
+        class_to_idx: Dict[str, int],
+        extensions: Optional[Tuple[str, ...]] = None,
+        is_valid_file: Optional[Callable[[str], bool]] = None,
+    ) -> List[Tuple[str, int]]:
+        if not class_to_idx:
+            raise ValueError('Unknown mapping from class to target')
+        if extensions is not None and is_valid_file is not None:
+            raise ValueError('Can\'t pass both extensions and is_valid_file')
+
+        if is_valid_file is not None:
+            crit = is_valid_file
+        elif extensions is not None:
+            crit = lambda x: os.path.splitext(x)[1] in extensions
+        else:
+            crit = lambda x: True
+
+        files = [x for x in os.listdir(directory) if crit(x)]
+        targets = [class_to_idx[x.split('_')[0]] for x in files]
+
+        return list(zip(files, targets))
 
 def get_model(patch_size, pretrained_weight_path, key=None, device='cuda'):
     if patch_size not in [8, 16]:
