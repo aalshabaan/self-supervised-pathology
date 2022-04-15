@@ -74,7 +74,10 @@ def build_prediction_map(
 
     # Affect values to map
     # print(map.shape)
-    map[coords_x_, coords_y_] = feature
+    if 'NN' in classifier_type:
+        map[coords_x_, coords_y_] = feature
+    else:
+        map[coords_x_, coords_y_] = feature
 
     return map
 
@@ -255,23 +258,23 @@ def plot_classification(
 
 
 @torch.no_grad()
-def segment_wsi_abbet_plot(ds, path_to_model, path_to_embeddings, out_filename, K=20, wsi_patch_size=224,
+def segment_wsi_abbet_plot(ds, path_to_model, path_to_embeddings, out_filename, K=20,
                            vit_patch_size=8, batch_size=8, model_key=None, classifier_type='KNN'):
     data = DataLoader(ds, batch_size=batch_size, )
 
     print('Creating model and loading pretrained weights')
-    if classifier_type == 'KNN':
+    if 'NN' in classifier_type:
         features, labels = Abed_utils.load_features(path_to_embeddings, load_labels=True, cuda=True)
         classifier = Abed_utils.KNNClassifier(features, labels, K)  # uses the device of the feature/label tensors
-    elif classifier_type == 'MLP':
-        classifier = Abed_utils.ClassificationHead(pretrained_path='./ckpts/classifier_K19_CE_100ep.pt')
+    elif 'MLP' in classifier_type:
+        classifier = Abed_utils.ClassificationHead(pretrained_path='./ckpts/classifier_K19_CE_100ep_one_layer.pt')
     else:
         raise ValueError(f'Unknown classifier model {classifier_type}, use "KNN" or "MLP"')
 
     backbone = Abed_utils.get_model(vit_patch_size, path_to_model, key=model_key)
-    backbone.eval()
 
     model = nn.Sequential(backbone, classifier)
+    model.eval()
 
     preds = []
     metadata = []
@@ -285,7 +288,7 @@ def segment_wsi_abbet_plot(ds, path_to_model, path_to_embeddings, out_filename, 
     else:
         thumbnail = ds.s.associated_images['thumbnail']
 
-    for i, crop_pair in enumerate(tqdm(data)):
+    for i, crop_pair in enumerate(tqdm(data, desc='Classifying patches...')):
         for img, metas in zip(*crop_pair):
             [mag, level, tx, ty, cx, cy, bx, by, s_src, s_tar] = metas
             preds.extend(model(img.to(next(model.parameters()).device)).cpu().numpy())
@@ -311,7 +314,7 @@ def segment_wsi_abbet_plot(ds, path_to_model, path_to_embeddings, out_filename, 
 
 
 @torch.no_grad()
-def segment_wsi(wsi, path_to_model, path_to_embeddings, out_filename, K=20, wsi_patch_size=224,
+def segment_wsi(wsi, path_to_model, path_to_embeddings, out_filename, K=20,
                 vit_patch_size=8, batch_size=8, model_key=None):
 
     data = DataLoader(wsi, batch_size=batch_size)
@@ -353,24 +356,33 @@ if __name__ == '__main__':
     logger.setLevel(logging.DEBUG)
 
     feat_path = os.path.join(Abed_utils.OUTPUT_ROOT, 'features')
-    out_filename = 'seg_dino_imagenet_100ep_MLP.npy'
+    classifier_type = "MLP_1"
+    out_filename = f'seg_dino_imagenet_100ep_{classifier_type}.npy'
 
-    ds = Abed_utils.load_wsi(Abed_utils.TEST_SLIDE_PATH, 224, 8)
+    # wsi_paths = os.listdir(Abed_utils.BERN_COHORT_ROOT)
 
-    outpath = segment_wsi_abbet_plot(ds, './ckpts/dino_deitsmall8_pretrain.pth', feat_path, out_filename)
+    ds = Abed_utils.load_wsi(os.path.join(Abed_utils.BERN_COHORT_ROOT, '1', '001b_B2005.30530_C_HE.mrxs'), 224, 8)
+    # ds = Abed_utils.load_wsi(Abed_utils.TEST_SLIDE_PATH, 224, 8)
+
+    outpath = segment_wsi_abbet_plot(ds,
+                                     './ckpts/dino_deitsmall8_pretrain.pth',
+                                     feat_path,
+                                     out_filename,
+                                     classifier_type=classifier_type)
+    #
     logger.info(f'Saved to {os.path.join(outpath, out_filename)}')
     # outpath = r'D:\self_supervised_pathology\output\wsi\001b_B2005.30530_C_HE.mrxs'
     logger.debug('Loading classification results')
     data = np.load(os.path.join(outpath, out_filename), allow_pickle=True).item()
-    # print(data['metadata'][0])
+
     logger.debug('Outputting image')
     plot_classification(data['thumbnail'],
                         data['metadata'][:, 3],
                         data['metadata'][:, 4],
-                        data['classification'],
+                        data['classification'] if 'NN' in classifier_type else np.argmax(data['classification'], axis=1),
                         data['classification_labels'],
                         ds.s.dimensions,
-                        os.path.join(outpath, 'mask.png'))
+                        os.path.join(outpath, f'mask_{classifier_type}.png'))
 
     logger.debug("Generate detections for QuPath viz ...")
     # Correction from metadata offset
@@ -378,7 +390,7 @@ if __name__ == '__main__':
     offset_y = int(ds.s.properties.get(openslide.PROPERTY_NAME_BOUNDS_Y, 0))
     # Correction for overlapping tiles
     # centering = 0.5 * config['wsi']['padding_factor'] * data['metadata'][0, -2]
-    centering = 0.5 * data['metadata'][0, -2]
+    centering = 0.5 * ds.padding_factor * data['metadata'][0, -2]
     # dataset_name = data.get('dataset_name', config['dataset']['name'])
     dataset_name = data['dataset_name'] if 'dataset_name' in data else 'Kather-19'
     # img_path = os.path.join(outpath)
@@ -388,25 +400,26 @@ if __name__ == '__main__':
         ty=data['metadata'][:, 3] - offset_y + centering,
         bx=data['metadata'][:, 6] - offset_x - centering,
         by=data['metadata'][:, 7] - offset_y - centering,
-        values=data['classification'],
+        values=data['classification'] if 'NN' in classifier_type else np.argmax(data['classification'], axis=1),
         values_name={k: data['classification_labels'][k] for k in range(len(data['classification_labels']))},
-        outpath=os.path.join(outpath, "mask_detection.json"),
+        outpath=os.path.join(outpath, f"mask_detection_{classifier_type}.json"),
         cmap=build_disrete_cmap(dataset_name),
     )
 
-    # for i, cls in enumerate(tqdm(data['classification_labels'], desc='Classes predictions ...')):
-    #     values = np.clip(softmax(data['classification'], axis=1)[:, i], a_min=0, a_max=0.99)
-    #     bins = np.linspace(0, 1, 101)
-    #     Abed_utils.save_annotation_qupath(
-    #         tx=data['metadata'][:, 2] - offset_x + centering,
-    #         ty=data['metadata'][:, 3] - offset_y + centering,
-    #         bx=data['metadata'][:, 6] - offset_x - centering,
-    #         by=data['metadata'][:, 7] - offset_y - centering,
-    #         values=bins[np.digitize(values, bins)],
-    #         values_name=bins[np.digitize(values, bins)],
-    #         outpath=os.path.join(outpath, "mask_{}_detection.json".format(cls)),
-    #         cmap=cm.get_cmap('inferno'),
-    #     )
+    if 'MLP' in classifier_type:
+        for i, cls in enumerate(tqdm(data['classification_labels'], desc='Classes predictions ...')):
+            values = np.clip(softmax(data['classification'], axis=1)[:, i], a_min=0, a_max=0.99)
+            bins = np.linspace(0, 1, 101)
+            Abed_utils.save_annotation_qupath(
+                tx=data['metadata'][:, 2] - offset_x + centering,
+                ty=data['metadata'][:, 3] - offset_y + centering,
+                bx=data['metadata'][:, 6] - offset_x - centering,
+                by=data['metadata'][:, 7] - offset_y - centering,
+                values=bins[np.digitize(values, bins)],
+                values_name=bins[np.digitize(values, bins)],
+                outpath=os.path.join(outpath, "mask_{}_{}_detection.json".format(classifier_type, cls)),
+                cmap=cm.get_cmap('inferno'),
+            )
     # wsi_tensor_into_image(os.path.join(outpath, out_filename), class_labels=['ADI', 'BACK', 'DEB', 'LYM', 'MUC', 'MUS', 'NORM', 'STR', 'TUM'])
 
 

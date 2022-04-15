@@ -28,7 +28,7 @@ from wsi import WholeSlideDataset
 def my_pc():
     return 'Abdulrahman' in node()
 
-DATA_ROOT = 'D:/self_supervised_pathology/datasets/NCT-CRC-HE-100K-NONORM'\
+K_19_PATH = 'D:/self_supervised_pathology/datasets/NCT-CRC-HE-100K-NONORM'\
     if my_pc() else '/mnt/data/dataset/tiled/kather19tiles_nonorm/NCT-CRC-HE-100K-NONORM'
 
 OUTPUT_ROOT = 'D:/self_supervised_pathology/output/'\
@@ -97,7 +97,7 @@ def get_data_loader(im_size, patch_size, batch_size=1, whole_slide=False, output
         slide_name = os.path.split(TEST_SLIDE_PATH)[1].split(os.extsep)[0]
         output_paths.append(os.path.join(output_subdir, slide_name))
     else:
-        ds = dataset_class(DATA_ROOT, t, loader=load_tif_windows)
+        ds = dataset_class(K_19_PATH, t, loader=load_tif_windows)
         for i, cls in enumerate(ds.classes):
             output_paths.append(os.path.join(output_subdir, cls))
             # os.makedirs(output_paths[i], exist_ok=True)
@@ -304,18 +304,19 @@ def save_annotation_qupath(
 
 
 class ClassificationHead(nn.Module):
+    # A simple MLP, only reason this class exists is to ensure a compatible MLP architecture across different scripts.
     logger = logging.getLogger('load_mlp')
 
     def __init__(self, in_dim=384, hidden_dim=100, out_dim=9, pretrained_path=None, device='cuda'):
         super().__init__()
-        self.mlp = nn.Sequential(nn.Linear(in_dim, hidden_dim, bias=False),
-                                 nn.ReLU(),
-                                 nn.Linear(hidden_dim, out_dim, bias=False),
-                                 nn.Softmax(dim=1)).to(device)
+        # self.mlp = nn.Sequential(nn.Linear(in_dim, hidden_dim, bias=False),
+        #                          nn.ReLU(),
+        #                          nn.Linear(hidden_dim, out_dim, bias=False)).to(device)
 
+        self.mlp = nn.Sequential(nn.Dropout(0.2),nn.Linear(in_dim, out_dim)).to(device)
         if pretrained_path is not None:
             state_dict = torch.load(pretrained_path)
-            msg = self.mlp.load_state_dict(state_dict)
+            msg = self.load_state_dict(state_dict)
             self.logger.info(f'Loaded MLP state dict with message {msg}')
         else:
             self.logger.info(f'No pretrained MLP given, loading random weights')

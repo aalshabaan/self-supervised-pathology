@@ -14,7 +14,7 @@ from tqdm import trange
 
 if __name__ == '__main__':
     os.makedirs('./logs/', exist_ok=True)
-    logfile = f'./logs/basic_run.txt'
+    logfile = f'./logs/regularized.txt'
 
     outpath = os.path.join(Abed_utils.OUTPUT_ROOT, 'classifier_weights')
     os.makedirs(outpath, exist_ok=True)
@@ -59,11 +59,12 @@ if __name__ == '__main__':
     train_acc_hist = []
     test_loss_hist = []
     test_acc_hist = []
-    for epoch in trange(epochs):
+    for epoch in trange(epochs, desc='Training classifier...'):
         train_loss = 0
         train_correct = 0
         test_loss = 0
         test_correct = 0
+        model.train()
         for x, y in train_loader:
             optimizer.zero_grad()
             preds = model(x.to(device))
@@ -76,6 +77,7 @@ if __name__ == '__main__':
             optimizer.step()
 
         with torch.no_grad():
+            model.eval()
             for x_t, y_t in test_loader:
                 preds = model(x_t.to(device))
                 loss = criterion(preds, y_t.to(device))
