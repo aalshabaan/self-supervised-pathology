@@ -17,7 +17,7 @@ sys.path.extend([os.getcwd(), os.path.join(os.getcwd(), 'facebookresearch_dino_m
 
 from facebookresearch_dino_main.visualize_attention import apply_mask
 from facebookresearch_dino_main.vision_transformer import VisionTransformer
-from Abed_utils import get_model, get_data_loader, OUTPUT_ROOT, output_paths
+from Abed_utils import get_vit, get_data_loader, OUTPUT_ROOT, output_paths
 
 def mask_batch(model:VisionTransformer, batch, names, labels, im_size, patch_size, threshold=0.5, device='cuda', relative_mask=True):
 
@@ -72,7 +72,7 @@ if __name__ == '__main__':
     # device = torch.device('cpu')
     patch_size = 8
     im_size = 224
-    model = get_model(patch_size, './ckpts/dino_deitsmall8_pretrain.pth', device=device)
+    model = get_vit(patch_size, './ckpts/dino_deitsmall8_pretrain.pth', device=device)
     print('Loading the dataset')
     data = get_data_loader(im_size, patch_size, 10, whole_slide=False, output_subdir='dino_base_abs')
     os.makedirs(OUTPUT_ROOT, exist_ok=True)

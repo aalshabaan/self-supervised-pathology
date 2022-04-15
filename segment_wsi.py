@@ -271,7 +271,7 @@ def segment_wsi_abbet_plot(ds, path_to_model, path_to_embeddings, out_filename, 
     else:
         raise ValueError(f'Unknown classifier model {classifier_type}, use "KNN" or "MLP"')
 
-    backbone = Abed_utils.get_model(vit_patch_size, path_to_model, key=model_key)
+    backbone = Abed_utils.get_vit(vit_patch_size, path_to_model, key=model_key)
 
     model = nn.Sequential(backbone, classifier)
     model.eval()
@@ -325,7 +325,7 @@ def segment_wsi(wsi, path_to_model, path_to_embeddings, out_filename, K=20,
     print('Creating model and loading pretrained weights')
     classifier = Abed_utils.KNNClassifier(features, labels, K)  # uses the device of the feature/label tensors
 
-    backbone = Abed_utils.get_model(vit_patch_size, path_to_model, key=model_key)
+    backbone = Abed_utils.get_vit(vit_patch_size, path_to_model, key=model_key)
     backbone.eval()
 
     model = nn.Sequential(backbone, classifier)

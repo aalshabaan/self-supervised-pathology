@@ -40,6 +40,9 @@ TEST_SLIDE_PATH = "D:/self_supervised_pathology/datasets/WSI/TCGA-CK-6747-01Z-00
 BERN_COHORT_ROOT = r"D:\self_supervised_pathology\datasets\WSI\bern_cohort_clean"\
     if my_pc() else '/mnt/data/dataset/bern_cohort_clean/'
 
+BERN_TILES_ROOT = None if my_pc()\
+    else '/mnt/data/dataset/tiled/bern_crop_label'
+
 DATETIME_FORMAT = '%m-%d_%H:%M:%S'
 
 output_paths = []
@@ -79,7 +82,7 @@ class BernTilesLabelDataset(ImageFolder):
 
         return list(zip(files, targets))
 
-def get_model(patch_size, pretrained_weight_path, key=None, device='cuda'):
+def get_vit(patch_size, pretrained_weight_path, key=None, device='cuda'):
     if patch_size not in [8, 16]:
         raise ValueError('patch size must be 8 or 16')
     global _model

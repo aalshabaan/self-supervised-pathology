@@ -10,7 +10,7 @@ import torch.nn.functional as F
 from torch.utils.data import DataLoader
 import torchvision.transforms as tr
 
-from Abed_utils import get_data_loader, get_model, OUTPUT_ROOT, K_19_PATH, normalize_input, load_tif_windows
+from Abed_utils import get_data_loader, get_vit, OUTPUT_ROOT, K_19_PATH, normalize_input, load_tif_windows
 from facebookresearch_dino_main.eval_knn import ReturnIndexDataset
 import facebookresearch_dino_main.utils as utils
 
@@ -52,5 +52,5 @@ if __name__ == '__main__':
                             tr.RandomHorizontalFlip(p=1)])
     ds = ReturnIndexDataset(K_19_PATH, transform=transofrm, loader=load_tif_windows)
     data = DataLoader(ds, 64)
-    model = get_model(8, pretrained_weight_path='ckpts/dino_deitsmall8_pretrain.pth')
+    model = get_vit(8, pretrained_weight_path='ckpts/dino_deitsmall8_pretrain.pth')
     save_features(model, data, out_dir=os.path.join(OUTPUT_ROOT, 'features_flipped'))
