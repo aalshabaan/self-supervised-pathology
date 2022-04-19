@@ -54,6 +54,11 @@ class NamedImageFolder(ImageFolder):
         return self.transform(self.loader(self.imgs[item][0])), *self.imgs[item]
 
 class BernTilesLabelDataset(ImageFolder):
+    """
+    A custom Dataset class that reads all images from a folder and infers the class label from the filenames.
+    Assumed filename structure is lbl_filename.ext where "lbl" is the class label.
+    """
+    #TODO: add a RegEx argument to match the label for any pattern?
     def find_classes(self, directory: str) -> Tuple[List[str], Dict[str, int]]:
         classes = sorted(torch.unique([x.split('_')[0] for x in os.listdir(directory) if os.path.isfile(os.path.join(directory, x))]))
         return classes, {c:i for i,c in enumerate(classes)}
