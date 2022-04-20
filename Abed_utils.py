@@ -40,7 +40,7 @@ TEST_SLIDE_PATH = "D:/self_supervised_pathology/datasets/WSI/TCGA-CK-6747-01Z-00
 BERN_COHORT_ROOT = r"D:\self_supervised_pathology\datasets\WSI\bern_cohort_clean"\
     if my_pc() else '/mnt/data/dataset/bern_cohort_clean/'
 
-BERN_TILES_ROOT = None if my_pc()\
+BERN_TILES_ROOT = r'D:\self_supervised_pathology\datasets\bern_crop_label' if my_pc()\
     else '/mnt/data/dataset/tiled/bern_crop_label'
 
 DATETIME_FORMAT = '%m-%d_%H:%M:%S'
@@ -360,3 +360,7 @@ class ClassificationHead(nn.Module):
 
     def forward(self, x):
         return self.mlp(x)
+
+def separate_classes_in_folder(datapath):
+    for cls in ['ADI', 'BACK', 'DEB', 'LYM', 'MUC', 'MUS', 'NORM', 'STR', 'TUM']:
+        os.makedirs(os.path.join(datapath, cls), exist_ok=True)
