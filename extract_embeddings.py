@@ -10,6 +10,7 @@ import torch.nn.functional as F
 from torch.utils.data import DataLoader
 import torchvision.transforms as tr
 
+import Abed_utils
 from Abed_utils import get_data_loader, get_vit, OUTPUT_ROOT, K_19_PATH, normalize_input, load_tif_windows, BERN_TILES_ROOT
 from facebookresearch_dino_main.eval_knn import ReturnIndexDataset
 import facebookresearch_dino_main.utils as utils
@@ -48,10 +49,11 @@ def save_features(model:torch.nn.Module, data_loader:DataLoader, out_dir, multis
 if __name__ == '__main__':
     # data = get_data_loader(224, 16, 64, dataset_class=ReturnIndexDataset, shuffle=False)
     t = functools.partial(normalize_input, im_size=224, patch_size=8)
-    transofrm = tr.Compose([t,
-                            tr.RandomHorizontalFlip(p=1)])
-    # for wsi in os.listdir(BERN_TILES_ROOT):
-    ds = ReturnIndexDataset(K_19_PATH, transform=transofrm, loader=load_tif_windows)
-    data = DataLoader(ds, 64)
-    model = get_vit(8, pretrained_weight_path='ckpts/dino_deitsmall8_pretrain.pth')
-    save_features(model, data, out_dir=os.path.join(OUTPUT_ROOT, 'features-flipped'))
+    # transform = tr.Compose([t,
+    #                         tr.RandomHorizontalFlip(p=1)])
+    transform = t
+    for wsi in os.listdir(BERN_TILES_ROOT):
+        ds = ReturnIndexDataset(os.path.join(Abed_utils.BERN_TILES_ROOT, wsi), transform=transform, loader=load_tif_windows)
+        data = DataLoader(ds, 64)
+        model = get_vit(8, pretrained_weight_path='ckpts/dino_deitsmall8_pretrain.pth')
+        save_features(model, data, out_dir=os.path.join(OUTPUT_ROOT, f'features-{wsi}'))

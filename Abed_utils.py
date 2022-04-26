@@ -58,10 +58,16 @@ class BernTilesLabelDataset(ImageFolder):
     A custom Dataset class that reads all images from a folder and infers the class label from the filenames.
     Assumed filename structure is lbl_filename.ext where "lbl" is the class label.
     """
+
+    def __init__(self, *args, return_index=False, **kwargs):
+        self.return_index = return_index
+        super().__init__(*args, **kwargs)
+
     #TODO: add a RegEx argument to match the label for any pattern?
     def find_classes(self, directory: str) -> Tuple[List[str], Dict[str, int]]:
-        classes = sorted(torch.unique([x.split('_')[0] for x in os.listdir(directory) if os.path.isfile(os.path.join(directory, x))]))
-        return classes, {c:i for i,c in enumerate(classes)}
+        # classes = sorted(torch.unique([x.split('_')[0] for x in os.listdir(directory) if os.path.isfile(os.path.join(directory, x))]))
+        classes = sorted(['ADI', 'BACK', 'DEB', 'LYM', 'MUC', 'MUS', 'NORM', 'STR', 'TUM'])
+        return classes, {c: i for i, c in enumerate(classes)}
 
     @staticmethod
     def make_dataset(
@@ -86,6 +92,7 @@ class BernTilesLabelDataset(ImageFolder):
         targets = [class_to_idx[x.split('_')[0]] for x in files]
 
         return list(zip(files, targets))
+
 
 def get_vit(patch_size, pretrained_weight_path, key=None, device='cuda'):
     if patch_size not in [8, 16]:
@@ -344,13 +351,40 @@ class ClassificationHead(nn.Module):
     # A simple MLP, only reason this class exists is to ensure a compatible MLP architecture across different scripts.
     logger = logging.getLogger('load_mlp')
 
-    def __init__(self, in_dim=384, hidden_dim=100, out_dim=9, pretrained_path=None, device='cuda'):
+    def __init__(self, in_dim=384, hidden_dims=None, out_dim=9, pretrained_path=None, device='cuda', dropout=None, n_hidden=1):
         super().__init__()
         # self.mlp = nn.Sequential(nn.Linear(in_dim, hidden_dim, bias=False),
         #                          nn.ReLU(),
         #                          nn.Linear(hidden_dim, out_dim, bias=False)).to(device)
+        modules = []
+        if dropout is not None:
+            modules.append(nn.Dropout(dropout))
 
-        self.mlp = nn.Sequential(nn.Dropout(0.2),nn.Linear(in_dim, out_dim)).to(device)
+        if hidden_dims is not None:
+            if isinstance(hidden_dims, int):
+                hidden_dims = [hidden_dims]*n_hidden
+            n_hidden = len(hidden_dims)
+            # Add input layer
+            modules.extend([nn.Linear(in_dim, hidden_dims[0]),
+                            nn.ReLU()])
+            if dropout is not None:
+                modules.append(nn.Dropout(dropout))
+
+            # Add hidden layers
+            for i in range(n_hidden-1):
+                modules.extend([nn.Linear(hidden_dims[i], hidden_dims[i+1]),
+                                nn.ReLU()])
+                if dropout is not None:
+                    modules.append(nn.Dropout(dropout))
+
+            # Output layer
+            modules.append(nn.Linear(hidden_dims[-1], out_dim))
+        else:
+            # Single layer
+            modules.append(nn.Linear(in_dim, out_dim))
+
+        self.mlp = nn.Sequential(*modules).to(device)
+
         if pretrained_path is not None:
             state_dict = torch.load(pretrained_path)
             msg = self.load_state_dict(state_dict)

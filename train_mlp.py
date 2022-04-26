@@ -14,7 +14,8 @@ from tqdm import trange
 
 if __name__ == '__main__':
     os.makedirs('./logs/', exist_ok=True)
-    logfile = f'./logs/regularized.txt'
+    logfile = f'./logs/200_100_hidden.txt'
+    weights_file = 'classifier_K19_CE_100ep_200_100_hidden.pt'
 
     outpath = os.path.join(Abed_utils.OUTPUT_ROOT, 'classifier_weights')
     os.makedirs(outpath, exist_ok=True)
@@ -39,6 +40,10 @@ if __name__ == '__main__':
     # t = functools.partial(Abed_utils.normalize_input, im_size=224, patch_size=patch_size)
     # ds = ImageFolder(Abed_utils.DATA_ROOT, transform=t, loader=Abed_utils.load_tif_windows)
     features, labels = Abed_utils.load_features(os.path.join(Abed_utils.OUTPUT_ROOT, 'features'), cuda=True)
+    # features_flipped, labels_flipped = Abed_utils.load_features(os.path.join(Abed_utils.OUTPUT_ROOT, 'features_flipped'), cuda=True)
+    #
+    # features = torch.concat([features, features_flipped], 0)
+    # labels = torch.concat([labels, labels_flipped])
 
     train_idx, test_idx = random_split(range(labels.shape[0]),
                                        [9*labels.shape[0]//10,
@@ -50,7 +55,7 @@ if __name__ == '__main__':
     train_loader = DataLoader(TensorDataset(X_train, y_train), batch_size=batch_size, shuffle=True)
     test_loader = DataLoader(TensorDataset(X_test, y_test), batch_size=batch_size, shuffle=True)
 
-    model = Abed_utils.ClassificationHead()
+    model = Abed_utils.ClassificationHead(dropout=0.2, hidden_dims=[200,100])
 
     optimizer = torch.optim.Adam(model.parameters(), lr)
     criterion = nn.CrossEntropyLoss()
@@ -96,12 +101,14 @@ if __name__ == '__main__':
 
         logger.info(f'epoch {epoch+1}, train_loss:{train_loss}, train_acc:{train_acc}, val_loss:{test_loss}, val_acc:{test_acc} ')
 
-        torch.save(model.state_dict(), os.path.join(Abed_utils.OUTPUT_ROOT, 'classifier_weights', f'ckpt{epoch}.pt'))
-
+        # torch.save(model.state_dict(), os.path.join(Abed_utils.OUTPUT_ROOT, 'classifier_weights', f'ckpt{epoch}.pt'))
 
     data = {'train_loss': train_loss_hist,
             'train_acc': train_acc_hist,
             'test_loss': test_loss_hist,
             'test_acc': test_acc_hist}
 
-    torch.save(data, os.path.join(Abed_utils.OUTPUT_ROOT, 'classifier_hist', 'first_run.pt'))
+    weights_file = os.path.join(os.getcwd(), 'ckpts', weights_file)
+    logger.info(f'Saving to {weights_file}')
+    torch.save(data, os.path.join(Abed_utils.OUTPUT_ROOT, 'classifier_hist', weights_file))
+    torch.save(model.state_dict(), weights_file)

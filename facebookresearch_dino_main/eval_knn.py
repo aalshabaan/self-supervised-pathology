@@ -187,6 +187,11 @@ class ReturnIndexDataset(datasets.ImageFolder):
         img, lab = super(ReturnIndexDataset, self).__getitem__(idx)
         return img, idx
 
+    def find_classes(self, directory: str):
+        classes, _ =  super(ReturnIndexDataset, self).find_classes(directory)
+        classes_to_map = sorted(['ADI', 'BACK', 'DEB', 'LYM', 'MUC', 'MUS', 'NORM', 'STR', 'TUM'])
+        return classes, {c:classes_to_map.index(c) for c in classes}
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser('Evaluation with weighted k-NN on ImageNet')
