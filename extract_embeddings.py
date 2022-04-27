@@ -48,7 +48,7 @@ def save_features(model:torch.nn.Module, data_loader:DataLoader, out_dir, multis
 
 if __name__ == '__main__':
     # data = get_data_loader(224, 16, 64, dataset_class=ReturnIndexDataset, shuffle=False)
-    t = functools.partial(normalize_input, im_size=224, patch_size=8)
+    t = normalize_input(im_size=224, patch_size=8)
     # transform = tr.Compose([t,
     #                         tr.RandomHorizontalFlip(p=1)])
     transform = t

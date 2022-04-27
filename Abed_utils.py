@@ -350,7 +350,7 @@ def load_features(path, cuda=False, load_labels=True):
 
 
 def load_wsi(path_to_wsi, crop_size, patch_size):
-    t = functools.partial(normalize_input, im_size=crop_size, patch_size=patch_size)
+    t = normalize_input(im_size=crop_size, patch_size=patch_size)
     ds = WholeSlideDataset(path_to_wsi, transform=t, crop_sizes_px=[crop_size])
 
     return ds
