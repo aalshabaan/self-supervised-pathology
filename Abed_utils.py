@@ -327,6 +327,12 @@ class KNNClassifier(nn.Module):
     def eval(self):
         pass
 
+    def train(self, mode: bool = True):
+        pass
+
+    def children(self):
+        return []
+
 
 def load_features(path, cuda=False, load_labels=True):
     """
