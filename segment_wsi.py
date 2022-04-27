@@ -378,7 +378,7 @@ if __name__ == '__main__':
                                              feat_path,
                                              out_filename,
                                              classifier=classifier,
-                                             batch_size= 8 if Abed_utils.my_pc() else 128)
+                                             batch_size= 8 if Abed_utils.my_pc() else 256)
             #
             logger.info(f'Saved to {os.path.join(outpath, out_filename)}')
     # outpath = r'D:\self_supervised_pathology\output\wsi\001b_B2005.30530_C_HE.mrxs'
