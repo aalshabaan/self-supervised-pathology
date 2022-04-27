@@ -55,5 +55,5 @@ if __name__ == '__main__':
     for wsi in os.listdir(BERN_TILES_ROOT):
         ds = ReturnIndexDataset(os.path.join(Abed_utils.BERN_TILES_ROOT, wsi), transform=transform, loader=load_tif_windows)
         data = DataLoader(ds, 64)
-        model = get_vit(8, pretrained_weight_path='ckpts/dino_deitsmall8_pretrain.pth')
-        save_features(model, data, out_dir=os.path.join(OUTPUT_ROOT, f'features-{wsi}'))
+        model = get_vit(8, pretrained_weight_path='ckpts/checkpoint0018.pth', key='teacher')
+        save_features(model, data, out_dir=os.path.join(OUTPUT_ROOT, f'features-{wsi}-finetuned'))

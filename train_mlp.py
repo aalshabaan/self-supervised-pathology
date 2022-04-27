@@ -14,8 +14,9 @@ from tqdm import trange
 
 if __name__ == '__main__':
     os.makedirs('./logs/', exist_ok=True)
-    logfile = f'./logs/200_100_hidden.txt'
-    weights_file = 'classifier_K19_CE_100ep_200_100_hidden.pt'
+    hidden_dims = [200,100,100]
+    logfile = f'./logs/{"_".join([str(x) for x in hidden_dims])}_hidden_nodropout.txt'
+    weights_file = f'classifier_K19_CE_100ep_{"_".join([str(x) for x in hidden_dims])}_hidden_nodropout.pt'
 
     outpath = os.path.join(Abed_utils.OUTPUT_ROOT, 'classifier_weights')
     os.makedirs(outpath, exist_ok=True)
@@ -40,14 +41,15 @@ if __name__ == '__main__':
     # t = functools.partial(Abed_utils.normalize_input, im_size=224, patch_size=patch_size)
     # ds = ImageFolder(Abed_utils.DATA_ROOT, transform=t, loader=Abed_utils.load_tif_windows)
     features, labels = Abed_utils.load_features(os.path.join(Abed_utils.OUTPUT_ROOT, 'features'), cuda=True)
+
+    # Augment with flipped images
     # features_flipped, labels_flipped = Abed_utils.load_features(os.path.join(Abed_utils.OUTPUT_ROOT, 'features_flipped'), cuda=True)
-    #
     # features = torch.concat([features, features_flipped], 0)
     # labels = torch.concat([labels, labels_flipped])
+    # epochs = epochs//2
 
     train_idx, test_idx = random_split(range(labels.shape[0]),
-                                       [9*labels.shape[0]//10,
-                                       labels.shape[0] - 9*labels.shape[0]//10])
+                                       [9*labels.shape[0]//10, labels.shape[0] - 9*labels.shape[0]//10])
 
     X_train, y_train = features[train_idx,:], labels[train_idx]
     X_test, y_test = features[test_idx,:], labels[test_idx]
@@ -55,7 +57,7 @@ if __name__ == '__main__':
     train_loader = DataLoader(TensorDataset(X_train, y_train), batch_size=batch_size, shuffle=True)
     test_loader = DataLoader(TensorDataset(X_test, y_test), batch_size=batch_size, shuffle=True)
 
-    model = Abed_utils.ClassificationHead(dropout=0.2, hidden_dims=[200,100])
+    model = Abed_utils.ClassificationHead(dropout=0.2, hidden_dims=hidden_dims)
 
     optimizer = torch.optim.Adam(model.parameters(), lr)
     criterion = nn.CrossEntropyLoss()
@@ -110,5 +112,5 @@ if __name__ == '__main__':
 
     weights_file = os.path.join(os.getcwd(), 'ckpts', weights_file)
     logger.info(f'Saving to {weights_file}')
-    torch.save(data, os.path.join(Abed_utils.OUTPUT_ROOT, 'classifier_hist', weights_file))
+    torch.save(data, os.path.join(Abed_utils.OUTPUT_ROOT, 'classifier_hist', logfile))
     torch.save(model.state_dict(), weights_file)

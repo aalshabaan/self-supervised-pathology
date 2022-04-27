@@ -47,11 +47,13 @@ DATETIME_FORMAT = '%m-%d_%H:%M:%S'
 
 output_paths = []
 
-
 _model = None
+
+
 class NamedImageFolder(ImageFolder):
     def __getitem__(self, item):
         return self.transform(self.loader(self.imgs[item][0])), *self.imgs[item]
+
 
 class BernTilesLabelDataset(ImageFolder):
     """
@@ -94,7 +96,29 @@ class BernTilesLabelDataset(ImageFolder):
         return list(zip(files, targets))
 
 
+class ReturnIndexDataset_K19(ImageFolder):
+    """
+    Image folder subclass that returns (datapoint, index) instead of (datapoint, label). Labels are assumed to be Kather-19 labels
+    """
+    def __getitem__(self, idx):
+        img, lab = super(ReturnIndexDataset_K19, self).__getitem__(idx)
+        return img, idx
+
+    def find_classes(self, directory: str):
+        classes, _ = super(ReturnIndexDataset_K19, self).find_classes(directory)
+        classes_to_map = sorted(['ADI', 'BACK', 'DEB', 'LYM', 'MUC', 'MUS', 'NORM', 'STR', 'TUM'])
+        return classes, {c: classes_to_map.index(c) for c in classes}
+
+
 def get_vit(patch_size, pretrained_weight_path, key=None, device='cuda'):
+    """
+    Build a vision transformer (as defined in the DINO code repo), load a checkpoint and return it
+    :param patch_size: Patch size for the vision transformer. An image will be split into multiple patches of this size and passed into the transformer as a bag of patches
+    :param pretrained_weight_path: Path towards the file containing the pretrained weights
+    :param key: Key from the dictionary that contains the state dict with pretrained weights, if not given the base dict is assumed to be the state dict
+    :param device: Device on which the model will be loaded. 'cuda' by default
+    :return: The loaded model
+    """
     if patch_size not in [8, 16]:
         raise ValueError('patch size must be 8 or 16')
     global _model
@@ -119,17 +143,27 @@ def get_vit(patch_size, pretrained_weight_path, key=None, device='cuda'):
     return _model
 
 
-def normalize_input(input, im_size, patch_size):
-    # print(type(input), input)
-    t = transforms.Compose([transforms.ToTensor(), transforms.Resize(im_size), transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225))])
-    img = t(input)
+def normalize_input(im_size, patch_size):
+    """
+    Returns a function that takes a PIL image (or a batch thereof) and returns them as tensors resized to the specified size
+    and being divisible into patches of patch_size.
+    This last part is done by discarding lines and columns after resizing to make sure each dimension is a multiple of patch_size
+    :param im_size: The desired image size
+    :param patch_size: The desired patch size
+    :return: a callable that takes a single argument, a PIL image or a tensor, and normalizes it
+    """
+    def normalize(input, im_size, patch_size):
+        t = transforms.Compose([transforms.ToTensor(), transforms.Resize(im_size), transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225))])
+        img = t(input)
 
-    w, h = img.shape[1] - img.shape[1] % patch_size, img.shape[2] - img.shape[2] % patch_size
-    img = img[:, :w, :h]
+        w, h = img.shape[1] - img.shape[1] % patch_size, img.shape[2] - img.shape[2] % patch_size
+        img = img[:, :w, :h]
 
-    return img
+        return img
+    return functools.partial(normalize, im_size=im_size, patch_size=patch_size)
 
 def get_data_loader(im_size, patch_size, batch_size=1, whole_slide=False, output_subdir=None, dataset_class=NamedImageFolder, shuffle=True):
+
     global output_paths
     global OUTPUT_ROOT
     output_subdir = os.path.join(OUTPUT_ROOT, output_subdir) if output_subdir is not None else OUTPUT_ROOT
@@ -149,10 +183,16 @@ def get_data_loader(im_size, patch_size, batch_size=1, whole_slide=False, output
     return dl
 
 def load_tif_windows(im_path:str):
+    """
+    A workaround to  load .tif files into PIL.Image on a windows machine without it crashing (at least it crashes on my machine)
+    This is done by loading the image into an ndarray and then loading that into PIL
+    :param im_path: Path to the image
+    :return: PIL.Image
+    """
     return Image.fromarray(imread(im_path))
 
 @torch.no_grad()
-def distance_matrix(x, y=None, p = 2): #pairwise distance of vectors
+def _distance_matrix(x, y=None, p = 2): #pairwise distance of vectors
 
     y = x if type(y) == type(None) else y
     x = x.cpu()
@@ -170,7 +210,7 @@ def distance_matrix(x, y=None, p = 2): #pairwise distance of vectors
     return dist
 
 @torch.no_grad()
-def knn_classifier(train_features:torch.Tensor, train_labels, test_features, k:int):
+def _knn_classifier(train_features:torch.Tensor, train_labels, test_features, k:int):
 
     num_test_images, num_chunks = test_features.shape[0], 100
     imgs_per_chunk = max(num_test_images // num_chunks, num_test_images)
@@ -178,7 +218,7 @@ def knn_classifier(train_features:torch.Tensor, train_labels, test_features, k:i
 
     for idx in range(0, num_test_images, imgs_per_chunk):
         features = test_features[idx:min(idx+imgs_per_chunk, num_test_images), :].cpu()
-        dists = distance_matrix(features, train_features)
+        dists = _distance_matrix(features, train_features)
         _, voters = torch.topk(dists, k, largest=False)
         votes = torch.gather(train_labels.view(1, -1).expand(features.shape[0], -1),1, voters)
         batch_preds, _ = torch.mode(votes, 1)
@@ -187,7 +227,7 @@ def knn_classifier(train_features:torch.Tensor, train_labels, test_features, k:i
     return preds
 
 @torch.no_grad()
-def similarity_knn_classifier(train_features:torch.Tensor, train_labels:torch.Tensor, test_features:torch.Tensor, k:int):
+def _similarity_knn_classifier(train_features:torch.Tensor, train_labels:torch.Tensor, test_features:torch.Tensor, k:int):
 
     num_test_images, num_chunks = test_features.shape[0], 100
     imgs_per_chunk = max(num_test_images // num_chunks, num_test_images)
@@ -207,7 +247,7 @@ def similarity_knn_classifier(train_features:torch.Tensor, train_labels:torch.Te
 
 
 @torch.no_grad()
-def weighted_similarity_knn_classifier(train_features, train_labels, test_features, k, T, num_classes=9):
+def _weighted_similarity_knn_classifier(train_features, train_labels, test_features, k, T, num_classes=9):
 
     # top1, top5, total = 0.0, 0.0, 0
     train_features = train_features.t()
@@ -254,9 +294,19 @@ def weighted_similarity_knn_classifier(train_features, train_labels, test_featur
     # return top1, top5
 
 class KNNClassifier(nn.Module):
-    def __init__(self, data, lbl, k=20, mode='cos'):
-        self.data = data
-        self.labels = lbl
+    def __init__(self, data, lbl, k=20, mode='cos', device=None):
+        """
+        A simple KNN classifier, uses the same device as the "data" and "lbl" tensors by default, can be overridden by
+        passing the "device" argument
+        :param data: The training data features tesnor (N, M)
+        :param lbl: The training data labels tensor (N,)
+        :param k: Parameter for the KNN classification, how many points are considered, higher value leads higher bias but lower variance
+        :param mode: The KNN calculation mode, 'cos', 'dist', or 'weighted'. 'cos' (cosine similarity) is default and recommended as it's fastest and seems to perform best
+        :param device: The device on which to do the classification, if None (default value) uses the device of the data and lbl tensors
+        """
+        self.data = data if device is None else data.to(device)
+        self.labels = lbl if device is None else lbl.to(device)
+
         if k in range(1, self.data.shape[0]+1):
             self.k = k
         else:
@@ -268,14 +318,21 @@ class KNNClassifier(nn.Module):
 
     def __call__(self, x):
         if self.mode == 'cos':
-            return similarity_knn_classifier(self.data, self.labels, x, self.k)
+            return _similarity_knn_classifier(self.data, self.labels, x, self.k)
         elif self.mode == 'weighted':
-            return knn_classifier(self.data, self.labels, x, self.k)
+            return _knn_classifier(self.data, self.labels, x, self.k)
         else:
-            return weighted_similarity_knn_classifier(self.data, self.labels, x, self.k)
+            return _weighted_similarity_knn_classifier(self.data, self.labels, x, self.k)
 
 
 def load_features(path, cuda=False, load_labels=True):
+    """
+    Load features extracted using 'extract_features.py'
+    :param path: Path to where the features are stocked
+    :param cuda: Features will be loaded to cuda if True, to CPU otherwise
+    :param load_labels: whether to load the labels as well, returned labels will be None if False
+    :return: (features, labels): The loaded tensors on the desired device
+    """
     device = torch.device('cuda') if cuda and torch.cuda.is_available() else torch.device('cpu')
     features = torch.load(os.path.join(path, 'features.pt')).to(device)
     labels = torch.load(os.path.join(path, 'labels.pt')).to(device) if load_labels else None
@@ -394,7 +451,3 @@ class ClassificationHead(nn.Module):
 
     def forward(self, x):
         return self.mlp(x)
-
-def separate_classes_in_folder(datapath):
-    for cls in ['ADI', 'BACK', 'DEB', 'LYM', 'MUC', 'MUS', 'NORM', 'STR', 'TUM']:
-        os.makedirs(os.path.join(datapath, cls), exist_ok=True)
