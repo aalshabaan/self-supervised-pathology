@@ -324,6 +324,9 @@ class KNNClassifier(nn.Module):
         else:
             return _weighted_similarity_knn_classifier(self.data, self.labels, x, self.k)
 
+    def eval(self):
+        pass
+
 
 def load_features(path, cuda=False, load_labels=True):
     """
