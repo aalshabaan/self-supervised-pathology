@@ -372,15 +372,17 @@ if __name__ == '__main__':
             out_filename = f'{wsi}_seg_dino_imagenet_100ep_{classifier_type}'
     # ds = Abed_utils.load_wsi(Abed_utils.TEST_SLIDE_PATH, 224, 8)
 
-
-            segment_wsi_abbet_plot(ds,
-                                   './ckpts/dino_deitsmall8_pretrain.pth',
-                                   feat_path,
-                                   out_filename,
-                                   classifier=classifier,
-                                   batch_size= 8 if Abed_utils.my_pc() else 256)
-            #
-            logger.info(f'Saved to {os.path.join(outpath, out_filename)}')
+            if not os.path.exists(os.path.join(outpath, out_filename)):
+                segment_wsi_abbet_plot(ds,
+                                       './ckpts/dino_deitsmall8_pretrain.pth',
+                                       feat_path,
+                                       out_filename,
+                                       classifier=classifier,
+                                       batch_size=8 if Abed_utils.my_pc() else 256)
+                #
+                logger.info(f'Saved to {os.path.join(outpath, out_filename)}')
+            else:
+                logger.info(f'Skipped {wsi}, already computed.')
     # outpath = r'D:\self_supervised_pathology\output\wsi\001b_B2005.30530_C_HE.mrxs'
     # logger.debug('Loading classification results')
     # data = np.load(os.path.join(outpath, out_filename), allow_pickle=True).item()
