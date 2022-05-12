@@ -288,7 +288,7 @@ def segment_wsi_abbet_plot(ds, path_to_model, path_to_embeddings, out_filename, 
     else:
         thumbnail = ds.s.associated_images['thumbnail']
 
-    for i, crop_pair in enumerate(tqdm(data, desc='Classifying patches...')):
+    for i, crop_pair in enumerate(tqdm(data, desc=f'Classifying {ds.path}...')):
         for img, metas in zip(*crop_pair):
             [mag, level, tx, ty, cx, cy, bx, by, s_src, s_tar] = metas
             preds.extend(model(img.to(next(model.parameters()).device)).cpu().numpy())
