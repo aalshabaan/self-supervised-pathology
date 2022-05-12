@@ -372,7 +372,7 @@ if __name__ == '__main__':
             out_filename = f'{wsi}_seg_dino_imagenet_100ep_{classifier_type}'
     # ds = Abed_utils.load_wsi(Abed_utils.TEST_SLIDE_PATH, 224, 8)
 
-            if not os.path.exists(os.path.join(outpath, out_filename)):
+            if not os.path.exists(os.path.join(outpath, f'{out_filename}.npy')):
                 segment_wsi_abbet_plot(ds,
                                        './ckpts/dino_deitsmall8_pretrain.pth',
                                        feat_path,
