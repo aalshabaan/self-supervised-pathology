@@ -260,7 +260,7 @@ def plot_classification(
 @torch.inference_mode()
 def segment_wsi_abbet_plot(ds, path_to_model, path_to_embeddings, out_filename, K=20,
                            vit_patch_size=8, batch_size=8, model_key=None, classifier=None, classifier_type='KNN'):
-    data = DataLoader(ds, batch_size=batch_size, )
+    data = DataLoader(ds, batch_size=batch_size, num_workers=8)
 
     if classifier is None:
         print('No model passed, Creating model and loading pretrained weights')
