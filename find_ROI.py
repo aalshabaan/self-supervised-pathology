@@ -27,7 +27,8 @@ def main():
         # Fix constants and factors
         pred_patch_size = int(preds['metadata'][0, -2])
         if (preds['metadata'][:, -2] == pred_patch_size).all():
-            print(f'Each patch covers {pred_patch_size}px^2 of the WSI')
+            # print(f'Each patch covers {pred_patch_size}px^2 of the WSI')
+            pass
         else:
             raise RuntimeError('Not all patches are of the same size!')
 
@@ -52,7 +53,7 @@ def main():
         # Build prediction tensor
         pred_tensor = torch.zeros(wsi.s.dimensions[1] // (pred_patch_size * downsample_factor),
                                   wsi.s.dimensions[0] // (pred_patch_size * downsample_factor), dtype=torch.uint8)
-        print(f'Prediction tensor is of size {pred_tensor.shape}')
+        # print(f'Prediction tensor is of size {pred_tensor.shape}')
 
         metadata = preds['metadata'].astype(int)
         df = pd.DataFrame(data=metadata[:, 2:8], columns=preds['metadata_labels'][2:8])
