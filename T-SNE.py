@@ -1,4 +1,5 @@
 import Abed_utils
+from segment_wsi import build_disrete_cmap
 
 import os
 from sklearn.manifold import TSNE
@@ -29,7 +30,7 @@ if __name__ == '__main__':
     print('Plotting')
     tags = ['ADI', 'BACK', 'DEB', 'LYM', 'MUC', 'MUS', 'NORM', 'STR', 'TUM']
     labels = [tags[x] for x in labels.long()]
-    sns.scatterplot(x=t_sne[:, 0], y=t_sne[:, 1], hue=labels, palette='tab10')
+    sns.scatterplot(x=t_sne[:, 0], y=t_sne[:, 1], hue=labels, palette=build_disrete_cmap('kather19').colors)
 
     # plt.scatter(x=t_sne[:, 0], y=t_sne[:, 1], c=labels.long().numpy(), cmap='tab10')
     plt.title('T-SNE Decomposition of Kather-19 DINO Features')
