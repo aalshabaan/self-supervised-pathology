@@ -14,7 +14,7 @@ from tqdm import tqdm
 
 
 def main():
-    outpath = os.path.join(Abed_utils.OUTPUT_ROOT, 'ROI_detections')
+    outpath = os.path.join(Abed_utils.OUTPUT_ROOT, 'ROI_detections_expanded')
     os.makedirs(outpath, exist_ok=True)
 
     for path in tqdm(glob(os.path.join(Abed_utils.BERN_COHORT_ROOT, '*', '*.mrxs'))):
@@ -77,7 +77,7 @@ def main():
         xs, ys = [], []
         with torch.no_grad():
             for i, rot in enumerate(rotations):
-                k = kernel.rotate(rot)
+                k = kernel.rotate(rot, expand=True)
                 k = T.ToTensor()(k).unsqueeze(0) / 255
                 # print(pred_tensor.shape)
                 k = (2 * k - 1)
