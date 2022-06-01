@@ -6,11 +6,14 @@ import pandas as pd
 from glob import glob
 from tqdm import tqdm
 import re
-
+from argparse import ArgumentParser
 from wsi import WholeSlideDataset
 
 if __name__ == '__main__':
-    for csv in tqdm(glob(os.path.join(Abed_utils.OUTPUT_ROOT, 'ROI_detections', '*.csv'))):
+    parser = ArgumentParser()
+    parser.add_argument('output_subdir', default='ROI_detections')
+    args = parser.parse_args()
+    for csv in tqdm(glob(os.path.join(Abed_utils.OUTPUT_ROOT, args.output_subdir, '*.csv'))):
         bname = os.path.basename(csv).split('_roi')[0]
         dir_name = str(int(re.match(r'^\d+', bname)[0]))
         # print(dir_name, bname)
