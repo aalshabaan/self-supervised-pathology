@@ -11,7 +11,7 @@ from wsi import WholeSlideDataset
 
 if __name__ == '__main__':
     parser = ArgumentParser()
-    parser.add_argument('output_subdir', default='ROI_detections')
+    parser.add_argument('--output_subdir', default='ROI_detections')
     args = parser.parse_args()
     for csv in tqdm(glob(os.path.join(Abed_utils.OUTPUT_ROOT, args.output_subdir, '*.csv'))):
         bname = os.path.basename(csv).split('_roi')[0]
