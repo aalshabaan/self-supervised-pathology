@@ -12,9 +12,11 @@ from PIL.ImageDraw import ImageDraw
 from glob import glob
 from tqdm import tqdm
 
+from argparse import ArgumentParser
 
-def main():
-    outpath = os.path.join(Abed_utils.OUTPUT_ROOT, 'ROI_detections_expanded')
+
+def main(args):
+    outpath = os.path.join(Abed_utils.OUTPUT_ROOT, 'ROI_detections_p10')
     os.makedirs(outpath, exist_ok=True)
 
     for path in tqdm(glob(os.path.join(Abed_utils.BERN_COHORT_ROOT, '*', '*.mrxs'))):
@@ -39,7 +41,7 @@ def main():
         search_radius = round(500 / patch_size)  # [patch]
 
         # Build convolution kernel
-        p = 0.15  # Percentage of the circle to show at each side
+        p = 0.10  # Percentage of the circle to show at each side
 
         kernel = Image.new('L', (diameter, diameter), 0)
         draw = ImageDraw(kernel)
@@ -84,8 +86,8 @@ def main():
                 # print(f'Kernel: {torch.unique(k)}, {k.shape}, {k.dtype}')
                 # print(k.shape)
                 # print(f'Input: {torch.unique(pred_tensor)}, {pred_tensor.shape}, {pred_tensor.dtype}')
-                hmap = F.conv2d(input=pred_tensor.unsqueeze(0).float(), weight=k, stride=(1,), padding='valid',
-                                dilation=(1,))[0, :, :]
+                hmap = F.conv2d(input=pred_tensor.unsqueeze(0).float(), weight=k, stride=(1,), padding='same',
+                                dilation=(1,)).squeeze()
 
                 v, idxs = hmap.flatten().topk(1)
                 x, y = idxs % hmap.shape[1], idxs // hmap.shape[1]
@@ -102,7 +104,7 @@ def main():
         coords = pd.DataFrame(data=list(zip(xs, ys, vals)), columns=['x', 'y', 'value'])
         coords = coords.applymap(lambda x: x.item())
         coords[['x', 'y']] *= pred_patch_size * downsample_factor
-
+        coords['mpp'] = wsi.mpp
         coords.to_csv(os.path.join(outpath, f'{os.path.basename(path)}_roi.csv'), encoding='UTF-8')
 
 
@@ -110,4 +112,9 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+
+    parser = ArgumentParser()
+    parser.add_argument('--out_subdir', default='ROI_detections')
+    parser.add_argument('-p', default=0.15)
+    args = parser.parse_args()
+    main(args)
