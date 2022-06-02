@@ -16,7 +16,7 @@ from argparse import ArgumentParser
 
 
 def main(args):
-    outpath = os.path.join(Abed_utils.OUTPUT_ROOT, 'ROI_detections_p10')
+    outpath = os.path.join(Abed_utils.OUTPUT_ROOT, args.out_subdir)
     os.makedirs(outpath, exist_ok=True)
 
     for path in tqdm(glob(os.path.join(Abed_utils.BERN_COHORT_ROOT, '*', '*.mrxs'))):
@@ -41,7 +41,7 @@ def main(args):
         search_radius = round(500 / patch_size)  # [patch]
 
         # Build convolution kernel
-        p = 0.10  # Percentage of the circle to show at each side
+        p = args.p  # Percentage of the circle to show at each side
 
         kernel = Image.new('L', (diameter, diameter), 0)
         draw = ImageDraw(kernel)
