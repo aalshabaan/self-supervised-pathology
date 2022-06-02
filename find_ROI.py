@@ -16,7 +16,7 @@ from argparse import ArgumentParser
 
 
 def main(args):
-    outpath = os.path.join(Abed_utils.OUTPUT_ROOT, args.out_subdir)
+    outpath = os.path.join(Abed_utils.OUTPUT_ROOT, args.out_subdir if args.out_subdir is not None else f'ROI_detections_p{args.p}')
     os.makedirs(outpath, exist_ok=True)
 
     for path in tqdm(glob(os.path.join(Abed_utils.BERN_COHORT_ROOT, '*', '*.mrxs'))):
@@ -114,7 +114,7 @@ def main(args):
 if __name__ == '__main__':
 
     parser = ArgumentParser()
-    parser.add_argument('--out_subdir', default='ROI_detections')
-    parser.add_argument('-p', default=0.15)
+    parser.add_argument('--out_subdir', default=None)
+    parser.add_argument('-p', default=0.15, type=float)
     args = parser.parse_args()
     main(args)
