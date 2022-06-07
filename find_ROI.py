@@ -15,9 +15,12 @@ from tqdm import tqdm
 from argparse import ArgumentParser
 
 
+@torch.no_grad()
 def main(args):
     outpath = os.path.join(Abed_utils.OUTPUT_ROOT, args.out_subdir if args.out_subdir is not None else f'ROI_detections_p{args.p}')
     os.makedirs(outpath, exist_ok=True)
+
+    device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 
     for path in tqdm(glob(os.path.join(Abed_utils.BERN_COHORT_ROOT, '*', '*.mrxs'))):
         # Load WSI (for some metadata) and predictions
@@ -43,18 +46,19 @@ def main(args):
         # Build convolution kernel
         p = args.p  # Percentage of the circle to show at each side
 
-        kernel = Image.new('L', (diameter, diameter), 0)
+        kernel = Image.new('1', (diameter, diameter), 0)
         draw = ImageDraw(kernel)
-        draw.ellipse(xy=[((p - 1) * diameter, 0), (p * diameter, diameter)], fill=255)
-        draw.ellipse(xy=[((1 - p) * diameter, 0), ((2 - p) * diameter, diameter)], fill=255)
-        draw.ellipse(xy=[(0, (p - 1) * diameter), (diameter, p * diameter)], fill=255)
-        draw.ellipse(xy=[(0, (1 - p) * diameter), (diameter, (2 - p) * diameter)], fill=255)
+        draw.ellipse(xy=[((p - 1) * diameter, 0), (p * diameter, diameter)], fill=1)
+        kernels = [kernel]
+        rotations = [90, 180, 270]
+        for rot in rotations:
+            kernels.append(kernel.rotate(rot))
 
-        kernel = kernel.convert('F')
+        kernels.append(Image.new('1', kernel.size, 0))
 
         # Build prediction tensor
         pred_tensor = torch.zeros(wsi.s.dimensions[1] // (pred_patch_size * downsample_factor),
-                                  wsi.s.dimensions[0] // (pred_patch_size * downsample_factor), dtype=torch.uint8)
+                                  wsi.s.dimensions[0] // (pred_patch_size * downsample_factor))
         # print(f'Prediction tensor is of size {pred_tensor.shape}')
 
         metadata = preds['metadata'].astype(int)
@@ -64,51 +68,49 @@ def main(args):
 
         # Put 1 wherever we have a tumor, -1 for Stroma, and 0 for everything else
         for coords, group in df.groupby(by=['cx', 'cy']):
-            pred_tensor[coords[::-1]] = group.pred.mode()[0]
+            # print(group.pred)
+            # if len(group.pred.mode()) > 1:
+            #     break
+            modes = group.pred.mode()
+            if 7 in modes.values:
+                pred_tensor[coords[::-1]] = -1
+            elif 8 in modes.values:
+                pred_tensor[coords[::-1]] = 1
+            else:
+                pred_tensor[coords[::-1]] = 0
 
-        pred_tensor = pred_tensor.float()
-        for i in range(7):
-            pred_tensor[pred_tensor == i] = 0
-        pred_tensor[pred_tensor == 7] = -1
-        pred_tensor[pred_tensor == 8] = 1
-
+        pred_tensor = pred_tensor.to(device)
         rotations = range(0, 50, 5)
         # fig, axs = plt.subplots(3, 3, figsize=(15, 15))
         # fig.suptitle('Rotations')
         vals = []
         xs, ys = [], []
-        with torch.no_grad():
-            for i, rot in enumerate(rotations):
-                k = kernel.rotate(rot, expand=True)
-                k = T.ToTensor()(k).unsqueeze(0) / 255
-                # print(pred_tensor.shape)
-                k = (2 * k - 1)
-                # print(f'Kernel: {torch.unique(k)}, {k.shape}, {k.dtype}')
-                # print(k.shape)
-                # print(f'Input: {torch.unique(pred_tensor)}, {pred_tensor.shape}, {pred_tensor.dtype}')
-                hmap = F.conv2d(input=pred_tensor.unsqueeze(0).float(), weight=k, stride=(1,), padding='same',
-                                dilation=(1,)).squeeze()
 
-                v, idxs = hmap.flatten().topk(1)
-                x, y = idxs % hmap.shape[1], idxs // hmap.shape[1]
-                xs.extend(x)
-                ys.extend(y)
-                vals.extend(v)
+        for i, rot in enumerate(rotations):
+            k = torch.concat([T.ToTensor()(x.rotate(rot)) for x in kernels]).unsqueeze(1).to(device)
+            # print(pred_tensor.shape)
+            # Put the stroma filter to -1
+            k[-1, :, :, :] = -1
+            # Convolve for heatmap
+            hmaps = F.conv2d(input=pred_tensor.unsqueeze(0), weight=k, stride=(1,), padding='same',
+                             dilation=(1,)).relu()
+            mask = (hmaps[:4, :, :] > 0).sum(0) == 4
+            # hmap = hmaps.mean(0)
+            hmap = hmaps[4,:,:]
+            hmap[~mask] = 0
 
-                # ax = axs[i//3, i%3]
-                # ax.imshow(hmap.relu())
-                # ax.set_title(f'{rot} degrees')
-                # ax.grid(None)
-                # ax.set_xticks([])
-                # ax.set_yticks([])
+            v, idxs = hmap.flatten().topk(1)
+            v:torch.Tensor
+            x, y = idxs % hmap.shape[1], torch.div(idxs, hmap.shape[1], rounding_mode='floor')
+            xs.extend(x)
+            ys.extend(y)
+            vals.extend(v)
+
         coords = pd.DataFrame(data=list(zip(xs, ys, vals)), columns=['x', 'y', 'value'])
         coords = coords.applymap(lambda x: x.item())
         coords[['x', 'y']] *= pred_patch_size * downsample_factor
         coords['mpp'] = wsi.mpp
         coords.to_csv(os.path.join(outpath, f'{os.path.basename(path)}_roi.csv'), encoding='UTF-8')
-
-
-
 
 
 if __name__ == '__main__':
