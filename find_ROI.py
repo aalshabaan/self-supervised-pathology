@@ -55,7 +55,10 @@ def main(args):
         for rot in rotations:
             kernels.append(kernel.rotate(rot))
 
-        kernels.append(Image.new('1', kernel.size, 0))
+        kernel = Image.new('1', kernel.size, 0)
+        draw = ImageDraw(kernel)
+        draw.ellipse(((0,0), (diameter, diameter)), fill=1)
+        kernels.append(kernel)
 
         # Build prediction tensor
         pred_tensor = torch.zeros(wsi.s.dimensions[1] // (pred_patch_size * downsample_factor),
@@ -73,10 +76,10 @@ def main(args):
             # if len(group.pred.mode()) > 1:
             #     break
             modes = group.pred.mode()
-            if 7 in modes.values:
-                pred_tensor[coords[::-1]] = -1
-            elif 8 in modes.values:
+            if 8 in modes.values:
                 pred_tensor[coords[::-1]] = 1
+            elif 7 in modes.values:
+                pred_tensor[coords[::-1]] = -1
             else:
                 pred_tensor[coords[::-1]] = 0
 
@@ -91,7 +94,7 @@ def main(args):
             k = torch.concat([T.ToTensor()(x.rotate(rot)) for x in kernels]).unsqueeze(1).to(device)
             # print(pred_tensor.shape)
             # Put the stroma filter to -1
-            k[-1, :, :, :] = -1
+            k[-1, :, :, :] *= -1
             # Convolve for heatmap
             hmaps = F.conv2d(input=pred_tensor.unsqueeze(0), weight=k, stride=(1,), padding='same',
                              dilation=(1,)).relu()
