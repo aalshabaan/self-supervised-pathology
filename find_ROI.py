@@ -19,7 +19,7 @@ output = []
 def main(args):
     outpath = os.path.join(Abed_utils.OUTPUT_ROOT, args.out_subdir if args.out_subdir is not None else f'ROI_detections_p{args.p}')
     roi_path = os.path.join(outpath, 'roi')
-    os.makedirs(outpath, exist_ok=True)
+    os.makedirs(roi_path, exist_ok=True)
 
     device = torch.device(f'cuda:{args.cuda_device}') if torch.cuda.is_available() and args.cuda_device is not None\
         else torch.device('cpu')
