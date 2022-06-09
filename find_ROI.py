@@ -25,11 +25,16 @@ def main(args):
         else torch.device('cpu')
 
     for path in tqdm(glob(os.path.join(Abed_utils.BERN_COHORT_ROOT, '*', '*.mrxs'))):
-        # Load WSI (for some metadata) and predictions
 
-        if os.path.exists(os.path.join(roi_path, os.path.basename(path))):
+        bname = os.path.basename(path)+'.png'
+
+        if os.path.isfile(os.path.join(roi_path, bname)):
+            print('Already calculated')
             continue
+
+        # Load WSI (for some metadata) and predictions
         wsi = WholeSlideDataset(path)
+
         preds = np.load(os.path.join(Abed_utils.OUTPUT_ROOT,
                                      'predictions_KNN',
                                      f'{os.path.basename(wsi.path)}_seg_dino_imagenet_100ep_KNN.npy'),
@@ -116,7 +121,7 @@ def main(args):
 
         output.append([xmax, ymax, vmax, wsi.mpp, pred_patch_size])
         wsi.s.read_region(((xmax-diameter//2)*pred_patch_size,(ymax-diameter//2)*pred_patch_size), 0, (diameter * pred_patch_size, diameter * pred_patch_size)).convert('RGB')\
-            .save(os.path.join(roi_path, os.path.basename(wsi.path))+'.png')
+            .save(os.path.join(roi_path, bname))
 
     coords = pd.DataFrame(data=output, columns=['x', 'y', 'value', 'mpp', 'patch_size'])
     # coords = coords.applymap(lambda x: x.item())
