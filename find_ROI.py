@@ -1,4 +1,3 @@
-import numpy
 
 import Abed_utils
 
@@ -38,7 +37,7 @@ def main(args):
         bname = os.path.basename(path)+'.png'
 
         if os.path.isfile(os.path.join(roi_path, bname)):
-            print('Already calculated')
+            print(f'{bname} already calculated, skipping!')
             continue
 
         # Load WSI (for some metadata) and predictions
@@ -130,7 +129,7 @@ def main(args):
             x, y = idxs.item() % hmap.shape[1], torch.div(idxs, hmap.shape[1], rounding_mode='floor').item()
 
             if v > vmax:
-                vmax = v
+                vmax = v.item()
                 xmax, ymax = x, y
 
         output.append([xmax, ymax, vmax, wsi.mpp, pred_patch_size])
