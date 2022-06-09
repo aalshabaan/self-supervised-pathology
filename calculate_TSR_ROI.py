@@ -6,9 +6,11 @@ import numpy as np
 from os.path import join
 from glob import glob
 from tqdm import tqdm
+import warnings
+warnings.filterwarnings('error')
 
 predictions_path = join(Abed_utils.OUTPUT_ROOT, 'predictions_KNN')
-roi_path = join(Abed_utils.OUTPUT_ROOT, 'ROI_detections_expanded')
+roi_path = join(Abed_utils.OUTPUT_ROOT, 'ROI_detection_STR_circle')
 
 def basename_from_roi(filename:str):
     name = os.path.basename(filename)
@@ -31,15 +33,19 @@ def main():
         # print(f'MASK SUM: {mask.sum()}')
 
         roi_preds = df.loc[mask, 'classification']
-        print(roi_preds.shape)
-        break
+        # print(roi_preds.shape)
+        # break
 
         T = (roi_preds == 8).sum()
         S = (roi_preds == 7).sum()
 
-        tsrs[basename] = T/(T+S)
+        try:
+            tsrs[basename] = T / (T + S)
+        except RuntimeWarning:
+            print(f'for {basename}: T:{T}, S:{S}, considered samples: {roi_preds.shape[0]}')
+            tsrs[basename] = np.nan
 
-    pd.Series(tsrs).to_csv(join(Abed_utils.OUTPUT_ROOT, 'ROI_detections_expanded', 'TSRs.csv'))
+    pd.Series(tsrs).to_csv(join(Abed_utils.OUTPUT_ROOT, 'ROI_detection_STR_circle.csv'))
 
 if __name__ == '__main__':
     main()

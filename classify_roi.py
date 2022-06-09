@@ -18,6 +18,9 @@ class ROIDataset(IterableDataset):
 
 
 
+
+
+
 def segment_roi(roi:Image.Image, model:torch.nn.Module, patch_size:int=224, overlap:float=0.5):
     step = patch_size*overlap
 

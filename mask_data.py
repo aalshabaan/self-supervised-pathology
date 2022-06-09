@@ -47,7 +47,7 @@ def mask_batch(model:VisionTransformer, batch, names, labels, im_size, patch_siz
         th_attn = torch.empty(*attn.shape)
         for i in range(attn.shape[0]):
             for head in range(nh):
-                th_attn[i,head] = attn[i,head] > threshold*(attn[i,head].min() + attn[i,head].max())
+                th_attn[i,head] = attn[i,head] > threshold*(attn[i,head].min() + attn[i,head].maximum())
     th_attn = th_attn.reshape(th_attn.shape[0], nh, w_featmap, h_featmap).float()
     # interpolate
     th_attn = F.interpolate(th_attn, scale_factor=patch_size, mode="nearest").bool().detach().cpu().numpy()

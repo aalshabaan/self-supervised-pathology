@@ -68,7 +68,7 @@ def build_prediction_map(
 
     # Define size of the feature map
     if wsi_dim is None:
-        map = default * np.ones((coords_y_.max() + 1, coords_x_.max() + 1, feature.shape[1]))
+        map = default * np.ones((coords_y_.maximum() + 1, coords_x_.maximum() + 1, feature.shape[1]))
     else:
         map = default * np.ones((int(wsi_dim[1] / interval_y), int(wsi_dim[0] / interval_x), feature.shape[1]))
 
@@ -351,38 +351,39 @@ def segment_wsi(wsi, path_to_model, path_to_embeddings, out_filename, K=20,
     return outpath
 
 if __name__ == '__main__':
-    logger = logging.getLogger()
-    logger.setLevel(logging.DEBUG)
+    with torch.inference_mode():
+        logger = logging.getLogger()
+        logger.setLevel(logging.WARNING)
 
-    feat_path = os.path.join(Abed_utils.OUTPUT_ROOT, 'features')
-    classifier_type = "KNN"
-    outpath = os.path.join(Abed_utils.OUTPUT_ROOT, f'predictions_{classifier_type}')
-    features, labels = Abed_utils.load_features(feat_path, cuda=True)
-    classifier = Abed_utils.KNNClassifier(features, labels)
+        feat_path = os.path.join(Abed_utils.OUTPUT_ROOT, 'features')
+        classifier_type = "KNN"
+        outpath = os.path.join(Abed_utils.OUTPUT_ROOT, f'predictions_{classifier_type}')
+        features, labels = Abed_utils.load_features(feat_path, cuda=True)
+        classifier = Abed_utils.KNNClassifier(features, labels)
 
-    wsi_paths = [x for x in os.listdir(Abed_utils.BERN_COHORT_ROOT)
-                 if os.path.isdir(os.path.join(Abed_utils.BERN_COHORT_ROOT, x))]
+        wsi_paths = [x for x in os.listdir(Abed_utils.BERN_COHORT_ROOT)
+                     if os.path.isdir(os.path.join(Abed_utils.BERN_COHORT_ROOT, x))]
 
-    for path in wsi_paths:
-        cur_dir = os.path.join(Abed_utils.BERN_COHORT_ROOT, path)
-        wsis = [x for x in os.listdir(cur_dir) if os.path.splitext(x)[1] == '.mrxs']
+        for path in wsi_paths:
+            cur_dir = os.path.join(Abed_utils.BERN_COHORT_ROOT, path)
+            wsis = [x for x in os.listdir(cur_dir) if os.path.splitext(x)[1] == '.mrxs']
 
-        for wsi in wsis:
-            ds = Abed_utils.load_wsi(os.path.join(cur_dir, wsi), 224, 8)
-            out_filename = f'{wsi}_seg_dino_imagenet_100ep_{classifier_type}'
-    # ds = Abed_utils.load_wsi(Abed_utils.TEST_SLIDE_PATH, 224, 8)
+            for wsi in wsis:
+                ds = Abed_utils.load_wsi(os.path.join(cur_dir, wsi), 224, 8)
+                out_filename = f'{wsi}_seg_dino_imagenet_100ep_{classifier_type}'
+        # ds = Abed_utils.load_wsi(Abed_utils.TEST_SLIDE_PATH, 224, 8)
 
-            if not os.path.exists(os.path.join(outpath, f'{out_filename}.npy')):
-                segment_wsi_abbet_plot(ds,
-                                       './ckpts/dino_deitsmall8_pretrain.pth',
-                                       feat_path,
-                                       out_filename,
-                                       classifier=classifier,
-                                       batch_size=8 if Abed_utils.my_pc() else 256)
-                #
-                logger.info(f'Saved to {os.path.join(outpath, out_filename)}')
-            else:
-                logger.info(f'Skipped {wsi}, already computed.')
+                if not os.path.exists(os.path.join(outpath, f'{out_filename}.npy')):
+                    segment_wsi_abbet_plot(ds,
+                                           './ckpts/dino_deitsmall8_pretrain.pth',
+                                           feat_path,
+                                           out_filename,
+                                           classifier=classifier,
+                                           batch_size=8 if Abed_utils.my_pc() else 256)
+                    #
+                    logger.info(f'Saved to {os.path.join(outpath, out_filename)}')
+                else:
+                    logger.info(f'Skipped {wsi}, already computed.')
     # outpath = r'D:\self_supervised_pathology\output\wsi\001b_B2005.30530_C_HE.mrxs'
     # logger.debug('Loading classification results')
     # data = np.load(os.path.join(outpath, out_filename), allow_pickle=True).item()

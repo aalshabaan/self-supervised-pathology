@@ -137,10 +137,11 @@ def main(args):
         wsi.s.read_region(((xmax-diameter//2)*pred_patch_size,(ymax-diameter//2)*pred_patch_size), 0, (diameter * pred_patch_size, diameter * pred_patch_size)).convert('RGB')\
             .save(os.path.join(roi_path, bname))
 
-        coords = pd.DataFrame(data=output, columns=['x', 'y', 'value', 'mpp', 'patch_size'])
-        coords = coords.applymap(lambda x: x.item())
+        # coords = pd.DataFrame(data=output, columns=['x', 'y', 'value', 'mpp', 'patch_size'])
+        coords = pd.Series(data=[xmax, ymax, vmax, wsi.mpp, pred_patch_size], index=['x', 'y', 'value', 'mpp', 'patch_size'])
+        # coords = coords.applymap(lambda x: x.item())
         coords[['x', 'y']] *= pred_patch_size * downsample_factor
-        coords['mpp'] = wsi.mpp
+        # coords['mpp'] = wsi.mpp
         coords.to_csv(os.path.join(outpath, f'{bname}.csv'), encoding='UTF-8', index=False)
 
 
