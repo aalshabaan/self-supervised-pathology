@@ -113,7 +113,7 @@ def main(args):
 
         output.append([xmax, ymax, vmax, wsi.mpp, pred_patch_size])
         wsi.s.read_region(((xmax-diameter//2)*pred_patch_size,(ymax-diameter//2)*pred_patch_size), 0, (diameter * pred_patch_size, diameter * pred_patch_size)).convert('RGB')\
-            .save(os.path.join(roi_path, os.path.basename(wsi.path)))
+            .save(os.path.join(roi_path, os.path.basename(wsi.path))+'.png')
 
     coords = pd.DataFrame(data=output, columns=['x', 'y', 'value', 'mpp', 'patch_size'])
     # coords = coords.applymap(lambda x: x.item())
