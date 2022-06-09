@@ -1,3 +1,5 @@
+import numpy
+
 import Abed_utils
 
 from wsi import WholeSlideDataset
@@ -11,12 +13,19 @@ from PIL import Image
 from PIL.ImageDraw import ImageDraw
 from glob import glob
 from tqdm import tqdm
+from scipy.signal import correlate
 
 from argparse import ArgumentParser
 
-output = []
+
+
+# @torch.no_grad()
+# def get_valid_points(filter:Image.Image, preds:torch.Tensor) -> torch.Tensor:
+
+
 @torch.no_grad()
 def main(args):
+    output = []
     outpath = os.path.join(Abed_utils.OUTPUT_ROOT, args.out_subdir if args.out_subdir is not None else f'ROI_detections_p{args.p}')
     roi_path = os.path.join(outpath, 'roi')
     os.makedirs(roi_path, exist_ok=True)
@@ -85,10 +94,10 @@ def main(args):
             # if len(group.pred.mode()) > 1:
             #     break
             modes = group.pred.mode()
-            if 8 in modes.values:
-                pred_tensor[coords[::-1]] = 1
-            elif 7 in modes.values:
+            if 7 in modes.values:
                 pred_tensor[coords[::-1]] = -1
+            elif 8 in modes.values:
+                pred_tensor[coords[::-1]] = 1
             else:
                 pred_tensor[coords[::-1]] = 0
 
@@ -103,13 +112,18 @@ def main(args):
             k = torch.concat([T.ToTensor()(x.rotate(rot)) for x in kernels]).unsqueeze(1).to(device)
             # print(pred_tensor.shape)
             # Put the stroma filter to -1
-            k[-1, :, :, :] *= -1
+            # k[-1, :, :, :] *= -1
             # Convolve for heatmap
-            hmaps = F.conv2d(input=pred_tensor.unsqueeze(0), weight=k, stride=(1,), padding='same',
-                             dilation=(1,)).relu()
-            mask = (hmaps[:4, :, :] > 0).sum(0) == 4
-            # hmap = hmaps.mean(0)
-            hmap = hmaps[4,:,:]
+            # hmaps = F.conv2d(input=pred_tensor.unsqueeze(0), weight=k, stride=(1,), padding='same',
+            #                  dilation=(1,)).relu()
+            # mask = (hmaps[:4, :, :] > 0).sum(0) == 4
+            # # hmap = hmaps.mean(0)
+            # hmap = hmaps[4,:,:]
+            # hmap[~mask] = 0
+            mask = (F.conv2d(input=(pred_tensor.unsqueeze(0) == 1).float(), weight=k[:4, :, :], stride=(1,),
+                             padding='same', dilation=(1,)) > 0).sum(0) == 4
+            hmap = F.conv2d(input=(pred_tensor.unsqueeze(0) == -1).float(), weight=k[4, :, :].unsqueeze(0), stride=(1,),
+                            padding='same', dilation=(1,)).squeeze()
             hmap[~mask] = 0
 
             v, idxs = hmap.flatten().topk(1)
