@@ -14,10 +14,11 @@ from tqdm import tqdm
 
 from argparse import ArgumentParser
 
-
+output = []
 @torch.no_grad()
 def main(args):
     outpath = os.path.join(Abed_utils.OUTPUT_ROOT, args.out_subdir if args.out_subdir is not None else f'ROI_detections_p{args.p}')
+    roi_path = os.path.join(outpath, 'roi')
     os.makedirs(outpath, exist_ok=True)
 
     device = torch.device(f'cuda:{args.cuda_device}') if torch.cuda.is_available() and args.cuda_device is not None\
@@ -87,8 +88,8 @@ def main(args):
         rotations = range(0, 50, 5)
         # fig, axs = plt.subplots(3, 3, figsize=(15, 15))
         # fig.suptitle('Rotations')
-        vals = []
-        xs, ys = [], []
+        vmax = 0
+        xmax, ymax = None, None
 
         for i, rot in enumerate(rotations):
             k = torch.concat([T.ToTensor()(x.rotate(rot)) for x in kernels]).unsqueeze(1).to(device)
@@ -104,17 +105,21 @@ def main(args):
             hmap[~mask] = 0
 
             v, idxs = hmap.flatten().topk(1)
-            v:torch.Tensor
-            x, y = idxs % hmap.shape[1], torch.div(idxs, hmap.shape[1], rounding_mode='floor')
-            xs.extend(x)
-            ys.extend(y)
-            vals.extend(v)
+            x, y = idxs.item() % hmap.shape[1], torch.div(idxs, hmap.shape[1], rounding_mode='floor').item()
 
-        coords = pd.DataFrame(data=list(zip(xs, ys, vals)), columns=['x', 'y', 'value'])
-        coords = coords.applymap(lambda x: x.item())
-        coords[['x', 'y']] *= pred_patch_size * downsample_factor
-        coords['mpp'] = wsi.mpp
-        coords.to_csv(os.path.join(outpath, f'{os.path.basename(path)}_roi.csv'), encoding='UTF-8')
+            if v > vmax:
+                vmax = v
+                xmax, ymax = x, y
+
+        output.append([xmax, ymax, vmax, wsi.mpp, pred_patch_size])
+        wsi.s.read_region(((xmax-diameter//2)*pred_patch_size,(ymax-diameter//2)*pred_patch_size), 0, (diameter * pred_patch_size, diameter * pred_patch_size)).convert('RGB')\
+            .save(os.path.join(roi_path, os.path.basename(wsi.path)))
+
+    coords = pd.DataFrame(data=output, columns=['x', 'y', 'value', 'mpp', 'patch_size'])
+    # coords = coords.applymap(lambda x: x.item())
+    # coords[['x', 'y']] *= pred_patch_size * downsample_factor
+    # coords['mpp'] = wsi.mpp
+    coords.to_csv(os.path.join(outpath, f'{args.out_subdir}.csv'), encoding='UTF-8', index=False)
 
 
 if __name__ == '__main__':
