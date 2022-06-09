@@ -26,6 +26,9 @@ def main(args):
 
     for path in tqdm(glob(os.path.join(Abed_utils.BERN_COHORT_ROOT, '*', '*.mrxs'))):
         # Load WSI (for some metadata) and predictions
+
+        if os.path.exists(os.path.join(roi_path, os.path.basename(path))):
+            continue
         wsi = WholeSlideDataset(path)
         preds = np.load(os.path.join(Abed_utils.OUTPUT_ROOT,
                                      'predictions_KNN',
@@ -88,7 +91,7 @@ def main(args):
         rotations = range(0, 50, 5)
         # fig, axs = plt.subplots(3, 3, figsize=(15, 15))
         # fig.suptitle('Rotations')
-        vmax = 0
+        vmax = -np.inf
         xmax, ymax = None, None
 
         for i, rot in enumerate(rotations):
