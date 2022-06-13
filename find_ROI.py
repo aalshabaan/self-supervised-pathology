@@ -133,7 +133,9 @@ def main(args):
                 xmax, ymax = x, y
 
         output.append([xmax, ymax, vmax, wsi.mpp, pred_patch_size])
-        wsi.s.read_region(((xmax-diameter//2)*pred_patch_size,(ymax-diameter//2)*pred_patch_size), 0, (diameter * pred_patch_size, diameter * pred_patch_size)).convert('RGB')\
+        ds_idx = len(wsi.s.level_downsamples) -1
+        ds = wsi.s.level_downsamples[ds_idx]
+        wsi.s.read_region(((xmax-diameter//2)*pred_patch_size,(ymax-diameter//2)*pred_patch_size), ds_idx, (diameter * pred_patch_size//ds, diameter * pred_patch_size//ds)).convert('RGB')\
             .save(os.path.join(roi_path, bname))
 
         # coords = pd.DataFrame(data=output, columns=['x', 'y', 'value', 'mpp', 'patch_size'])
