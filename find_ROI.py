@@ -72,9 +72,9 @@ def main(args):
         for rot in rotations:
             kernels.append(kernel.rotate(rot))
 
-        kernel = Image.new('1', kernel.size, 0)
-        draw = ImageDraw(kernel)
-        draw.ellipse(((0,0), (diameter, diameter)), fill=1)
+        kernel = Image.new('1', kernel.size, 1)
+        # draw = ImageDraw(kernel)
+        # draw.ellipse(((0,0), (diameter, diameter)), fill=1)
         kernels.append(kernel)
 
         # Build prediction tensor
