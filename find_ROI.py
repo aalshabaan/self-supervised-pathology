@@ -133,7 +133,8 @@ def main(args):
                 xmax, ymax = x, y
 
         output.append([xmax, ymax, vmax, wsi.mpp, pred_patch_size])
-        ds_idx = len(wsi.level_downsamples) -1
+        # ds_idx = len(wsi.level_downsamples) -1
+        ds_idx = 0
         ds = int(wsi.level_downsamples[ds_idx])
         wsi.s.read_region(((xmax-diameter//2)*pred_patch_size,(ymax-diameter//2)*pred_patch_size), ds_idx, ((diameter * pred_patch_size)//ds, (diameter * pred_patch_size)//ds)).convert('RGB')\
             .save(os.path.join(roi_path, bname))
