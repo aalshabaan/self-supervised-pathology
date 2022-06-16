@@ -155,9 +155,9 @@ if __name__ == '__main__':
     parser.add_argument('--out-subdir', default=None)
     parser.add_argument('-p', default=0.15, type=float)
     parser.add_argument('--cuda-device', default=None, type=int)
-    parser.add_argument('--activation-bias', default=0, help='The minimum activation of a TUM filter to qualify')
+    parser.add_argument('--activation-bias', default=0, help='The minimum activation of a TUM filter to qualify', type=int)
     parser.add_argument('--roi-downsample', default=16, help='Downsampling used to save the ROI. This practically only'
                                                              ' changes the level of magnification when retrieving the'
-                                                             ' ROI to the closest value')
+                                                             ' ROI to the closest value', type=int)
     args = parser.parse_args()
     main(args)
