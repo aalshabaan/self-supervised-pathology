@@ -20,7 +20,8 @@ from argparse import ArgumentParser
 
 # @torch.no_grad()
 # def get_valid_points(filter:Image.Image, preds:torch.Tensor) -> torch.Tensor:
-
+STR = 7
+TUM = 8
 
 @torch.no_grad()
 def main(args):
@@ -34,9 +35,9 @@ def main(args):
 
     for path in tqdm(glob(os.path.join(Abed_utils.BERN_COHORT_ROOT, '*', '*.mrxs'))):
 
-        bname = os.path.basename(path)+'.png'
+        bname = os.path.basename(path)
 
-        if os.path.isfile(os.path.join(roi_path, bname)):
+        if os.path.isfile(os.path.join(roi_path, bname+'.png')):
             print(f'{bname} already calculated, skipping!')
             continue
 
@@ -45,7 +46,7 @@ def main(args):
 
         preds = np.load(os.path.join(Abed_utils.OUTPUT_ROOT,
                                      'predictions_KNN',
-                                     f'{os.path.basename(wsi.path)}_seg_dino_imagenet_100ep_KNN.npy'),
+                                     f'{bname}_seg_dino_imagenet_100ep_KNN.npy'),
                         allow_pickle=True).item()
         # Fix constants and factors
         pred_patch_size = int(preds['metadata'][0, -2])
@@ -59,7 +60,7 @@ def main(args):
 
         patch_size = wsi.mpp * downsample_factor * pred_patch_size  # [um/patch]
         diameter = round(2500 / patch_size)  # [patch]
-        search_radius = round(500 / patch_size)  # [patch]
+        # search_radius = round(500 / patch_size)  # [patch]
 
         # Build convolution kernel
         p = args.p  # Percentage of the circle to show at each side
@@ -72,9 +73,9 @@ def main(args):
         for rot in rotations:
             kernels.append(kernel.rotate(rot))
 
-        kernel = Image.new('1', kernel.size, 1)
-        # draw = ImageDraw(kernel)
-        # draw.ellipse(((0,0), (diameter, diameter)), fill=1)
+        kernel = Image.new('1', kernel.size, 0)
+        draw = ImageDraw(kernel)
+        draw.ellipse(((0,0), (diameter, diameter)), fill=1)
         kernels.append(kernel)
 
         # Build prediction tensor
@@ -93,10 +94,10 @@ def main(args):
             # if len(group.pred.mode()) > 1:
             #     break
             modes = group.pred.mode()
-            if 7 in modes.values:
-                pred_tensor[coords[::-1]] = -1
-            elif 8 in modes.values:
-                pred_tensor[coords[::-1]] = 1
+            if STR in modes.values:
+                pred_tensor[coords[::-1]] = STR
+            elif TUM in modes.values:
+                pred_tensor[coords[::-1]] = TUM
             else:
                 pred_tensor[coords[::-1]] = 0
 
@@ -104,11 +105,11 @@ def main(args):
         rotations = range(0, 50, 5)
         # fig, axs = plt.subplots(3, 3, figsize=(15, 15))
         # fig.suptitle('Rotations')
-        vmax = -np.inf
+        vmax = 0
         xmax, ymax = None, None
 
         for i, rot in enumerate(rotations):
-            k = torch.concat([T.ToTensor()(x.rotate(rot)) for x in kernels]).unsqueeze(1).to(device)
+            k = torch.concat([T.ToTensor()(x.rotate(rot)) for x in kernels[:4]] + [T.ToTensor()(kernels[4])]).unsqueeze(1).to(device)
             # print(pred_tensor.shape)
             # Put the stroma filter to -1
             # k[-1, :, :, :] *= -1
@@ -119,14 +120,15 @@ def main(args):
             # # hmap = hmaps.mean(0)
             # hmap = hmaps[4,:,:]
             # hmap[~mask] = 0
-            mask = (F.conv2d(input=(pred_tensor.unsqueeze(0) == 1).float(), weight=k[:4, :, :], stride=(1,),
-                             padding='same', dilation=(1,)) > 0).sum(0) == 4
-            hmap = F.conv2d(input=(pred_tensor.unsqueeze(0) == -1).float(), weight=k[4, :, :].unsqueeze(0), stride=(1,),
+            mask = (F.conv2d(input=(pred_tensor.unsqueeze(0) == TUM).float(), weight=k[:4, :, :], stride=(1,),
+                             padding='same', dilation=(1,)) > args.activation_bias).sum(0) == 4
+            hmap = F.conv2d(input=(pred_tensor.unsqueeze(0) == STR).float(), weight=k[4:, :, :], stride=(1,),
                             padding='same', dilation=(1,)).squeeze()
             hmap[~mask] = 0
 
-            v, idxs = hmap.flatten().topk(1)
-            x, y = idxs.item() % hmap.shape[1], torch.div(idxs, hmap.shape[1], rounding_mode='floor').item()
+            v = hmap.max()
+            idx = hmap.argmax()
+            x, y = idx.item() % hmap.shape[1], idx.item()//hmap.shape[1]
 
             if v > vmax:
                 vmax = v.item()
@@ -134,24 +136,28 @@ def main(args):
 
         output.append([xmax, ymax, vmax, wsi.mpp, pred_patch_size])
         # ds_idx = len(wsi.level_downsamples) -1
-        ds_idx = np.abs(np.array(wsi.level_downsamples) - 16).argmin()
+        ds_idx = np.abs(np.array(wsi.level_downsamples) - args.roi_downsample).argmin()
         ds = int(wsi.level_downsamples[ds_idx])
         wsi.s.read_region(((xmax-diameter//2)*pred_patch_size,(ymax-diameter//2)*pred_patch_size), ds_idx, ((diameter * pred_patch_size)//ds, (diameter * pred_patch_size)//ds)).convert('RGB')\
-            .save(os.path.join(roi_path, bname))
+            .save(os.path.join(roi_path, bname+'.png'))
 
         # coords = pd.DataFrame(data=output, columns=['x', 'y', 'value', 'mpp', 'patch_size'])
         coords = pd.Series(data=[xmax, ymax, vmax, wsi.mpp, pred_patch_size], index=['x', 'y', 'value', 'mpp', 'patch_size'])
         # coords = coords.applymap(lambda x: x.item())
         coords[['x', 'y']] *= pred_patch_size * downsample_factor
         # coords['mpp'] = wsi.mpp
-        coords.to_csv(os.path.join(outpath, f'{bname}.csv'), encoding='UTF-8', index=False)
+        coords.to_csv(os.path.join(outpath, f'{bname}.csv'), encoding='UTF-8')
 
 
 if __name__ == '__main__':
 
     parser = ArgumentParser()
-    parser.add_argument('--out_subdir', default=None)
+    parser.add_argument('--out-subdir', default=None)
     parser.add_argument('-p', default=0.15, type=float)
     parser.add_argument('--cuda-device', default=None, type=int)
+    parser.add_argument('--activation-bias', default=0, help='The minimum activation of a TUM filter to qualify')
+    parser.add_argument('--roi_downsample', default=16, help='Downsampling used to save the ROI. This practically only'
+                                                             ' changes the level of magnification when retrieving the'
+                                                             ' ROI to the closest value')
     args = parser.parse_args()
     main(args)
