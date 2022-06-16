@@ -6,7 +6,7 @@ from argparse import ArgumentParser
 import numpy as np
 import torch
 from torch import nn
-from torch.utils.data import IterableDataset, DataLoader
+from torch.utils.data import Dataset, DataLoader
 from PIL import Image
 from typing import List, Tuple, Union
 from glob import glob
@@ -15,10 +15,11 @@ from tqdm import tqdm
 import pandas as pd
 import matplotlib.pyplot as plt
 
-class ROIDataset(IterableDataset):
-    def __init__(self, path_to_image:str, patch_size:int=224, padding_factor:float=0.5, loader=None):
+class ROIDataset(Dataset):
+    def __init__(self, path_to_image:str, patch_size:int=224, padding_factor:float=0.5, loader=None, transform=None):
         self.patch_size = patch_size
         self.step_size = padding_factor
+        self.transform = transform
 
         self.im = Image.open(path_to_image) if loader is None else loader(path_to_image)
 
@@ -35,6 +36,7 @@ class ROIDataset(IterableDataset):
         x, y = self.center_grid[item, :]
         m = self.patch_size//2
         crop = self.im.crop((x-m, y-m, x+m, y+m))
+        crop = self.transform(crop)
 
         return crop, [self.patch_size, x, y, x-m, y-m, x+m, y+m]
 
@@ -102,7 +104,7 @@ if __name__ == '__main__':
     device = torch.device(f'cuda:{args.cuda_dev}') if torch.cuda.is_available() and args.cuda_dev is not None\
         else torch.device('cpu')
     backbone = Abed_utils.get_vit(8, './ckpts/dino_deitsmall8_pretrain.pth', arch='vit_small', device=device)
-    features, labels = Abed_utils.load_features(os.path.join(Abed_utils.OUTPUT_ROOT, 'features'), cuda=True)
+    features, labels = Abed_utils.load_features(os.path.join(Abed_utils.OUTPUT_ROOT, 'features'), device=device)
     classifier = Abed_utils.KNNClassifier(features, labels)
 
     model = nn.Sequential(backbone, classifier)
@@ -111,6 +113,7 @@ if __name__ == '__main__':
     TUM = 8
     STR = 7
     outpath = os.path.join(Abed_utils.OUTPUT_ROOT, args.out_subdir)
+    os.makedirs(outpath, exist_ok=True)
 
     tsrs = {}
     with torch.inference_mode():
@@ -118,20 +121,21 @@ if __name__ == '__main__':
             all_preds = []
             all_metas = []
             wsi_name = parse_roi_name(f)
-            ds = ROIDataset(f, patch_size=args.patch_size, padding_factor=args.padding)
-            loader = DataLoader(ds, shuffle=False, batch_size=args.batch_size, drop_last=False)
+            ds = ROIDataset(f, patch_size=args.patch_size, padding_factor=args.padding, transform=Abed_utils.normalize_input(args.patch_size, 8))
+            loader = DataLoader(ds, shuffle=False, batch_size=args.batch_size, drop_last=False, num_workers=4)
             for x, metas in tqdm(loader, desc=f'Classifying roi of {wsi_name}...'):
-                all_metas.extend(metas)
-                preds = model(x)
-                all_preds.extend(preds)
+                all_metas.extend(torch.vstack(metas).T)
+                preds = model(x.to(device))
+                all_preds.extend(preds.cpu())
 
             all_preds = np.array(all_preds)
             T = (all_preds == TUM).sum()
             S = (all_preds == STR).sum()
             tsrs[wsi_name] = T/(T+S)
             df = pd.DataFrame(data=all_metas, columns=['s_src', 'cx', 'cy', 'tx', 'ty', 'bx', 'by'])
+            df = df.applymap(lambda x: x.item() if isinstance(x, torch.Tensor) else x)
             df['classification'] = all_preds
 
-            df.to_csv(os.path.join(outpath, wsi_name), index=False)
+            df.to_csv(os.path.join(outpath, f'{wsi_name}.csv'), index=False)
 
     pd.Series(tsrs).astype(float).to_csv(os.path.join(outpath, 'TSR.csv'))
