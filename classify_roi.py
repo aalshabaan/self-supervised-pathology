@@ -92,7 +92,7 @@ def parse_args():
     parser.add_argument('--padding', default=0.5, help='Padding factor to build the prediction grid.', type=float)
     parser.add_argument('--roi-path', help='The path towards the ROI images. should contain .png images', required=True)
     parser.add_argument('--cuda-dev', help='The cude device to use if specified', default=None)
-    parser.add_argument('--batch-size', help='The batch size to be used', default=64)
+    parser.add_argument('--batch-size', help='The batch size to be used', default=64, type=int)
     parser.add_argument('--out-subdir', help='Subdirectory of the output folder', required=True)
     return parser.parse_args()
 
