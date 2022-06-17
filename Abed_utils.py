@@ -21,7 +21,7 @@ import numpy as np
 
 sys.path.extend([os.getcwd(), os.path.join(os.getcwd(), 'facebookresearch_dino_main')])
 
-from facebookresearch_dino_main.vision_transformer import vit_small
+from facebookresearch_dino_main.vision_transformer import vit_small, vit_tiny
 from wsi import WholeSlideDataset
 
 
@@ -110,7 +110,7 @@ class ReturnIndexDataset_K19(ImageFolder):
         return classes, {c: classes_to_map.index(c) for c in classes}
 
 
-def get_vit(patch_size, pretrained_weight_path, key=None, device='cuda'):
+def get_vit(patch_size, pretrained_weight_path, key=None, device='cuda', arch='vit_small'):
     """
     Build a vision transformer (as defined in the DINO code repo), load a checkpoint and return it
     :param patch_size: Patch size for the vision transformer. An image will be split into multiple patches of this size and passed into the transformer as a bag of patches
@@ -123,7 +123,12 @@ def get_vit(patch_size, pretrained_weight_path, key=None, device='cuda'):
         raise ValueError('patch size must be 8 or 16')
     global _model
     if _model is None:
-        _model = vit_small(patch_size=patch_size, num_classes=0)
+        if arch == 'vit_small':
+            _model = vit_small(patch_size=patch_size, num_classes=0)
+        elif arch == 'vit_tiny':
+            _model = vit_tiny(patch_size=patch_size, num_classes=0)
+        else:
+            raise ValueError(f'Unsupported architecture {arch}!')
         state_dict = torch.load(pretrained_weight_path)
         if key is not None:
             state_dict = state_dict[key]
@@ -142,6 +147,14 @@ def get_vit(patch_size, pretrained_weight_path, key=None, device='cuda'):
         _model = _model.to(device)
     return _model
 
+def _normalize(input, im_size, patch_size):
+    t = transforms.Compose([transforms.ToTensor(), transforms.Resize(im_size), transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225))])
+    img = t(input)
+
+    w, h = img.shape[1] - img.shape[1] % patch_size, img.shape[2] - img.shape[2] % patch_size
+    img = img[:, :w, :h]
+
+    return img
 
 def normalize_input(im_size, patch_size):
     """
@@ -152,15 +165,8 @@ def normalize_input(im_size, patch_size):
     :param patch_size: The desired patch size
     :return: a callable that takes a single argument, a PIL image or a tensor, and normalizes it
     """
-    def normalize(input, im_size, patch_size):
-        t = transforms.Compose([transforms.ToTensor(), transforms.Resize(im_size), transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225))])
-        img = t(input)
 
-        w, h = img.shape[1] - img.shape[1] % patch_size, img.shape[2] - img.shape[2] % patch_size
-        img = img[:, :w, :h]
-
-        return img
-    return functools.partial(normalize, im_size=im_size, patch_size=patch_size)
+    return functools.partial(_normalize, im_size=im_size, patch_size=patch_size)
 
 def get_data_loader(im_size, patch_size, batch_size=1, whole_slide=False, output_subdir=None, dataset_class=NamedImageFolder, shuffle=True):
 
@@ -334,15 +340,14 @@ class KNNClassifier(nn.Module):
         return []
 
 
-def load_features(path, cuda=False, load_labels=True):
+def load_features(path, device='cuda', load_labels=True):
     """
     Load features extracted using 'extract_features.py'
     :param path: Path to where the features are stocked
-    :param cuda: Features will be loaded to cuda if True, to CPU otherwise
+    :param device: Features will be loaded on the selected device
     :param load_labels: whether to load the labels as well, returned labels will be None if False
     :return: (features, labels): The loaded tensors on the desired device
     """
-    device = torch.device('cuda') if cuda and torch.cuda.is_available() else torch.device('cpu')
     features = torch.load(os.path.join(path, 'features.pt')).to(device)
     labels = torch.load(os.path.join(path, 'labels.pt')).to(device) if load_labels else None
 
