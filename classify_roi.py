@@ -96,6 +96,7 @@ def parse_args():
     parser.add_argument('--cuda-dev', help='The cude device to use if specified', default=None)
     parser.add_argument('--batch-size', help='The batch size to be used', default=64, type=int)
     parser.add_argument('--out-subdir', help='Subdirectory of the output folder', required=True)
+    parser.add_argument('--num-workers', default=4, type=int, help='Number of worker threads in the dataloader')
     return parser.parse_args()
 
 
@@ -124,7 +125,7 @@ if __name__ == '__main__':
             all_metas = []
             wsi_name = parse_roi_name(f)
             ds = ROIDataset(f, patch_size=args.patch_size, padding_factor=args.padding, transform=Abed_utils.normalize_input(args.patch_size, 8))
-            loader = DataLoader(ds, shuffle=False, batch_size=args.batch_size, drop_last=False, num_workers=4)
+            loader = DataLoader(ds, shuffle=False, batch_size=args.batch_size, drop_last=False, num_workers=args.num_workers)
             for x, metas in tqdm(loader, desc=f'Classifying roi of {wsi_name}...'):
                 all_metas.extend(torch.vstack(metas).T)
                 preds = model(x.to(device))
