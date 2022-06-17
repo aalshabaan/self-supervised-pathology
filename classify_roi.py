@@ -15,7 +15,7 @@ from tqdm import tqdm
 import pandas as pd
 import matplotlib.pyplot as plt
 
-ImageFile.LOAD_TRUNCATED_IMAGES = True
+# ImageFile.LOAD_TRUNCATED_IMAGES = True
 
 class ROIDataset(Dataset):
     def __init__(self, path_to_image:str, patch_size:int=224, padding_factor:float=0.5, loader=None, transform=None):
