@@ -7,13 +7,15 @@ import numpy as np
 import torch
 from torch import nn
 from torch.utils.data import Dataset, DataLoader
-from PIL import Image
+from PIL import Image, ImageFile
 from typing import List, Tuple, Union
 from glob import glob
 from tqdm import tqdm
 
 import pandas as pd
 import matplotlib.pyplot as plt
+
+ImageFile.LOAD_TRUNCATED_IMAGES = True
 
 class ROIDataset(Dataset):
     def __init__(self, path_to_image:str, patch_size:int=224, padding_factor:float=0.5, loader=None, transform=None):
