@@ -10,7 +10,8 @@ from torchvision.datasets import ImageFolder
 import torch.nn as nn
 
 
-def fine_tune_model(model:nn.Module, data:DataLoader, lr:float, epochs:int, save_path:str,  layers_to_freeze:int=9, save_freq=5):
+def fine_tune_model(model:nn.Module, data:DataLoader, lr:float, epochs:int, save_path:str,  layers_to_freeze:int=9,
+                    save_freq=5, device='cpu'):
     os.makedirs(save_path, exist_ok=True)
 
     model.train()
@@ -21,8 +22,8 @@ def fine_tune_model(model:nn.Module, data:DataLoader, lr:float, epochs:int, save
     for e in range(epochs):
         for batch, lbl in tqdm(data, f'epoch {e+1}/{epochs}'):
             optim.zero_grad()
-            out = model(batch)
-            batch_loss = loss(out.softmax(dim=1), lbl)
+            out = model(batch.to(device))
+            batch_loss = loss(out.softmax(dim=1), lbl.to(device))
             batch_loss.backward()
         if not e % save_freq:
             torch.save(model.state_dict(), os.path.join(save_path, f'finetuned{e+1}.pt'))
@@ -37,14 +38,15 @@ def main(args):
     classifier = Abed_utils.ClassificationHead(device=device)
     model = nn.Sequential(backbone, classifier)
     dataset = ImageFolder(Abed_utils.K_19_PATH, transform=Abed_utils.normalize_input(224, 8), loader=Abed_utils.load_tif_windows)
-    data = DataLoader(dataset, batch_size=64, num_workers=4, shuffle=True, drop_last=False)
+    data = DataLoader(dataset, batch_size=64, num_workers=4, shuffle=True, drop_last=False, pin_memory=True)
 
     fine_tune_model(model,
                     data,
                     lr=args.lr,
                     epochs=args.epochs,
                     save_path=os.path.join(Abed_utils.OUTPUT_ROOT, 'tuned_supervised'),
-                    save_freq=args.save_freq)
+                    save_freq=args.save_freq,
+                    device=device)
 
 def parse_args():
     parser = ArgumentParser()
