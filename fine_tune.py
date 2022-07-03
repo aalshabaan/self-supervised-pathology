@@ -38,7 +38,7 @@ def main(args):
     classifier = Abed_utils.ClassificationHead(device=device)
     model = nn.Sequential(backbone, classifier)
     dataset = ImageFolder(Abed_utils.K_19_PATH, transform=Abed_utils.normalize_input(224, 8), loader=Abed_utils.load_tif_windows)
-    data = DataLoader(dataset, batch_size=64, num_workers=4, shuffle=True, drop_last=False, pin_memory=True)
+    data = DataLoader(dataset, batch_size=args.batch_size, num_workers=4, shuffle=True, drop_last=False, pin_memory=True)
 
     fine_tune_model(model,
                     data,
@@ -52,6 +52,7 @@ def parse_args():
     parser = ArgumentParser()
     parser.add_argument('--cuda-dev', default=None)
     parser.add_argument('--patch-size', default=8, type=int)
+    parser.add_argument('--batch-size', default=64, type=int)
     parser.add_argument('--arch', default='vit_small')
     parser.add_argument('--key', default=None)
     parser.add_argument('--weight-path', default=None)
