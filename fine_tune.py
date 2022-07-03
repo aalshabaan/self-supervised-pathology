@@ -25,6 +25,7 @@ def fine_tune_model(model:nn.Module, data:DataLoader, lr:float, epochs:int, save
             out = model(batch.to(device))
             batch_loss = loss(out.softmax(dim=1), lbl.to(device))
             batch_loss.backward()
+            optim.step()
         if not e % save_freq:
             torch.save(model.state_dict(), os.path.join(save_path, f'finetuned{e+1}.pt'))
             print(f'Saved after {e+1} epochs!')
