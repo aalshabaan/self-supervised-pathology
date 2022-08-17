@@ -1,4 +1,3 @@
-import functools
 import logging
 import os
 from typing import Union, Optional, Tuple
@@ -16,7 +15,7 @@ from matplotlib import pyplot as plt
 from matplotlib.colors import ListedColormap, Colormap
 from torch.utils.data import DataLoader
 from tqdm import tqdm
-from scipy.special import softmax
+from argparse import ArgumentParser
 
 import Abed_utils
 

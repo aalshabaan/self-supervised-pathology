@@ -12,11 +12,11 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 
 if __name__ == '__main__':
-    fig_name = 'TSNE.pdf'
-    tsne_name = 'decomposed.npy'
-    out_subdir = 'K_19_tsne'
+    fig_name = 'TSNE_trained_65.pdf'
+    tsne_name = 'decomposed_trained_65.npy'
+    out_subdir = 'K_19_tsne_trained_65'
     os.makedirs(os.path.join(Abed_utils.OUTPUT_ROOT, out_subdir), exist_ok=True)
-    features, labels = Abed_utils.load_features(os.path.join(Abed_utils.OUTPUT_ROOT, 'features'))
+    features, labels = Abed_utils.load_features(os.path.join(Abed_utils.OUTPUT_ROOT, 'features-k19-trained-65'))
     if not os.path.exists(os.path.join(Abed_utils.OUTPUT_ROOT, out_subdir, tsne_name)):
 
         print('Performing TSNE')

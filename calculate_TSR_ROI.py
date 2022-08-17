@@ -6,11 +6,11 @@ import numpy as np
 from os.path import join
 from glob import glob
 from tqdm import tqdm
-import warnings
-warnings.filterwarnings('error')
+# import warnings
+# warnings.filterwarnings('error')
 
 predictions_path = join(Abed_utils.OUTPUT_ROOT, 'predictions_KNN')
-roi_path = join(Abed_utils.OUTPUT_ROOT, 'ROI_detection_STR_circle')
+roi_path = join(Abed_utils.OUTPUT_ROOT, 'ROI_detection_final_full')
 
 def basename_from_roi(filename:str):
     name = os.path.basename(filename)
@@ -25,27 +25,28 @@ def main():
 
         df = pd.DataFrame(pred_dict['metadata'], columns=pred_dict['metadata_labels'])
         df['classification'] = pred_dict['classification']
-        possible_rois = pd.read_csv(roi_filename)
-        roi_coords = possible_rois.sort_values(by='value', ascending=False)[['x', 'y']].iloc[0,:]
+        possible_rois = pd.read_csv(roi_filename, index_col='Unnamed: 0').squeeze('columns')
+        # print(possible_rois)
+        roi_coords = possible_rois[['x', 'y']]
         # print(f'ROI: {roi_coords}')
-        radius = 1250/possible_rois.mpp[0]
+        radius = 1250/possible_rois.mpp
         mask = np.sqrt((df.cx - roi_coords.x)**2 + (df.cy-roi_coords.y)**2) <= radius
         # print(f'MASK SUM: {mask.sum()}')
 
         roi_preds = df.loc[mask, 'classification']
-        # print(roi_preds.shape)
+        print(roi_preds.shape)
         # break
 
         T = (roi_preds == 8).sum()
         S = (roi_preds == 7).sum()
 
-        try:
+        if T or S:
             tsrs[basename] = T / (T + S)
-        except RuntimeWarning:
+        else:
             print(f'for {basename}: T:{T}, S:{S}, considered samples: {roi_preds.shape[0]}')
             tsrs[basename] = np.nan
 
-    pd.Series(tsrs).to_csv(join(Abed_utils.OUTPUT_ROOT, 'ROI_detection_STR_circle.csv'))
+    # pd.Series(tsrs, dtype=float).to_csv(join(Abed_utils.OUTPUT_ROOT, 'ROI_detection_final_full.csv'))
 
 if __name__ == '__main__':
     main()

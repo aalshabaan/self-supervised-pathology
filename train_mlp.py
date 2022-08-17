@@ -13,10 +13,19 @@ from torch.utils.data import random_split, DataLoader, TensorDataset
 from tqdm import trange
 
 if __name__ == '__main__':
+
+    patch_size = 8
+    lr = 1e-3
+    epochs = 100
+    batch_size = 64
+    dropout = 0.5
+    hidden_dims = [100, 100, 100]
+
     os.makedirs('./logs/', exist_ok=True)
-    hidden_dims = [200,100,100]
-    logfile = f'./logs/{"_".join([str(x) for x in hidden_dims])}_hidden_nodropout.txt'
-    weights_file = f'classifier_K19_CE_100ep_{"_".join([str(x) for x in hidden_dims])}_hidden_nodropout.pt'
+
+    logfile = f'./logs/trained65{"_".join([str(x) for x in hidden_dims]) if hidden_dims else "_no"}_hidden_{"nodropout" if dropout is None else f"{dropout}dropout"}.txt'
+    # logfile = f'./logs/tuned_no_hidden.txt'
+    weights_file = f'classifier_K19_CE_{epochs}ep_trained65{"_".join([str(x) for x in hidden_dims]) if hidden_dims else "_no"}_hidden_{"nodropout" if dropout is None else f"{dropout}dropout"}.pt'
 
     outpath = os.path.join(Abed_utils.OUTPUT_ROOT, 'classifier_weights')
     os.makedirs(outpath, exist_ok=True)
@@ -28,10 +37,6 @@ if __name__ == '__main__':
                         level=logging.DEBUG)
     logger = logging.getLogger('Training')
 
-    patch_size = 8
-    lr = 1e-3
-    epochs = 100
-    batch_size = 64
 
     device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
     logger.debug(f'using {device}')
@@ -40,7 +45,7 @@ if __name__ == '__main__':
 
     # t = functools.partial(Abed_utils.normalize_input, im_size=224, patch_size=patch_size)
     # ds = ImageFolder(Abed_utils.DATA_ROOT, transform=t, loader=Abed_utils.load_tif_windows)
-    features, labels = Abed_utils.load_features(os.path.join(Abed_utils.OUTPUT_ROOT, 'features'), cuda=True)
+    features, labels = Abed_utils.load_features(os.path.join(Abed_utils.OUTPUT_ROOT, 'features-k19-trained-65'), device=device)
 
     # Augment with flipped images
     # features_flipped, labels_flipped = Abed_utils.load_features(os.path.join(Abed_utils.OUTPUT_ROOT, 'features_flipped'), cuda=True)
@@ -57,7 +62,7 @@ if __name__ == '__main__':
     train_loader = DataLoader(TensorDataset(X_train, y_train), batch_size=batch_size, shuffle=True)
     test_loader = DataLoader(TensorDataset(X_test, y_test), batch_size=batch_size, shuffle=True)
 
-    model = Abed_utils.ClassificationHead(dropout=0.2, hidden_dims=hidden_dims)
+    model = Abed_utils.ClassificationHead(in_dim=192, dropout=dropout, hidden_dims=hidden_dims)
 
     optimizer = torch.optim.Adam(model.parameters(), lr)
     criterion = nn.CrossEntropyLoss()
@@ -112,5 +117,5 @@ if __name__ == '__main__':
 
     weights_file = os.path.join(os.getcwd(), 'ckpts', weights_file)
     logger.info(f'Saving to {weights_file}')
-    torch.save(data, os.path.join(Abed_utils.OUTPUT_ROOT, 'classifier_hist', logfile))
+    torch.save(data, os.path.join(Abed_utils.OUTPUT_ROOT, 'classifier_hist', os.path.basename(logfile).split('.')[0]+'.pt'))
     torch.save(model.state_dict(), weights_file)

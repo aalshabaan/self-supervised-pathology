@@ -32,6 +32,9 @@ def my_pc():
 K_19_PATH = 'D:/self_supervised_pathology/datasets/NCT-CRC-HE-100K-NONORM'\
     if my_pc() else '/mnt/data/dataset/tiled/kather19tiles_nonorm/NCT-CRC-HE-100K'
 
+K_19_VAL_PATH = 'D:/self_supervised_pathology/datasets/CRC-VAL-HE-7K'\
+    if my_pc() else '/mnt/data/dataset/tiled/kather19tiles_nonorm/CRC-VAL-HE-7K'
+
 OUTPUT_ROOT = 'D:/self_supervised_pathology/output/'\
     if my_pc() else '/home/guest/Documents/shabaan_2022/output/'
 
